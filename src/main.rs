@@ -1,3 +1,4 @@
+use devi::moves::generate_moves;
 use devi::types::*;
 use devi::board::*;
 // use devi::moves::*;
@@ -11,10 +12,15 @@ fn main() {
 
     let mut board = Board::new();    
     board.setup_starting_position();
-    // let white_pawn = Piece::new(PieceType::Pawn, Color::White);
-    // board.set_piece(Square(8), Some(white_pawn));
 
     //starting positions
     println!("Piece at a2: {:?}", board.get_piece(Square(8)));
     println!("e4 is empty? : {:?}", board.is_empty(Square(28)));
+
+    let white_moves = generate_moves(&board, Color::White);
+    let black_moves = generate_moves(&board, Color::Black);
+
+    println!("White has {} possible moves.", white_moves.len());
+    println!("Black has {} possible moves.", black_moves.len());
+
 }
