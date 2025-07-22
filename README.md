@@ -1,6 +1,10 @@
 # devi Chess Engine
 
-A chess engine written in Rust to understand chess engine algorithms, their history, and explore intuitive Rust implementations. This project focuses on learning core AI search algorithms while practicing clean Rust development patterns.
+A chess engine written in Rust to understand chess engine algorithms, their history, and explore intuitive Rust implementations. 
+This project explores chess engine algorithms through the lens of high-performance computing, demonstrating system-level optimizations and clean Rust development.
+
+## Project Philosophy
+**Learn → Build → Measure → Optimize**
 
 ## Inspiration & Learning Resources
 - **Book**: Chess Algo - Noah Caplinger - modern algorithmic approach to chess programming and search optimization
@@ -10,32 +14,90 @@ A chess engine written in Rust to understand chess engine algorithms, their hist
 
 ## Features (planned)
 
-### v0.1.0 - Playable Engine
-- [ ] Board representation and move generation
-- [ ] Basic material evaluation
-- [ ] Simple minimax search (no alpha-beta yet)
-- [ ] Basic GUI with egui
-- [ ] Human vs Engine gameplay
+### v1 - Basic Minimax
+- Array board + piece lists
+- Material evaluation + piece-square tables
+- Fixed-depth minimax (depth 4)
+- **Baseline metrics**: nodes/second, flamegraph profile
 
-### v0.2.0 - Engine Selector System
-- [ ] Add alpha-beta pruning as "Engine v2"
-- [ ] Engine selection menu in GUI
-- [ ] Compare performance between engines
-- [ ] Basic engine stats display
+### v2 - Alpha-Beta Pruning  
+- Add alpha-beta pruning to v1
+- **Expected**: >8x node reduction
+- **Metrics**: node count comparison, effective branching factor
 
-### v0.3.0 - Better Engines
-- [ ] Add move ordering as "Engine v3"
-- [ ] Add iterative deepening as "Engine v4"
-- [ ] Engine difficulty selection
+### v3 - Move Ordering
+- Captures-first ordering
+- Killer move heuristic
+- **Expected**: Additional 2-3x node reduction
+- **Metrics**: beta-cutoff percentage, move ordering efficiency
 
-### v0.4.0 - Advanced Engines
-- [ ] Transposition tables as "Engine v5"
-- [ ] Positional evaluation as "Engine v6"
+### v4 - Iterative Deepening (MVP)
+- Time-based search
+- Principal variation reuse
+- **Target**: Playable strength, responsive moves
+- **Metrics**: time-to-depth, move stability
+
+### v5 - Cache Analysis (Stretch)
+- Dummy transposition table experiments
+- **HPC focus**: L3 cache miss analysis
+- **Metrics**: Cache misses vs table size graphs
+
+### v6 - Parallel Search (Stretch)
+- Root-level parallelization with Rayon
+- **HPC focus**: Multi-core speedup
+- **Metrics**: Speedup vs core count, efficiency
+
+
+## Weekly Deliverables
+
+**Week 1**: Complete move generation + legality validation
+- [x] Board representation
+- [x] Pawn moves (forward)
+- [x] Pawn captures
+- [ ] All piece types
+- [ ] Legal move filtering
+- [ ] Perft validation suite
+
+**Week 2**: v1 Minimax engine
+- [ ] Material + PST evaluation
+- [ ] Fixed-depth minimax
+- [ ] First flamegraph
+- [ ] Baseline nodes/second
+
+**Week 3**: v2 Alpha-Beta
+- [ ] Alpha-beta implementation
+- [ ] Node reduction verification
+- [ ] Tracing instrumentation
+
+**Week 4**: v3 Move Ordering
+- [ ] Capture ordering
+- [ ] Killer moves
+- [ ] Criterion comparison
+
+**Week 5**: v4 Iterative Deepening
+- [ ] Time management
+- [ ] Playable CLI interface
+- [ ] PV table
+
+**Week 6**: Cache studies
+- [ ] TT size experiments
+- [ ] perf cache analysis
+
+**Week 7**: Polish/Stretch
+- [ ] Quiescence search
+- [ ] Root parallelization
+
+**Week 8**: Documentation
+- [ ] Final benchmarks
+- [ ] Research write-up
+
+### Performance Metrics
+- Perft accuracy
+- Move generation speed (moves/second)
+- Memory usage baseline
 
 ## Current Status
-**v0.1.0 - In Development**
-
-Currently working on core architecture and basic functionality.
+**Week 1 - Move Generation Phase**
 
 ## Contributing
 This is primarily a learning project, but suggestions and discussions are welcome!
