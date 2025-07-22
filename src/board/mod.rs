@@ -4,7 +4,7 @@ pub struct Board {
     squares: [Option<Piece>; 64],
     to_move: Color,
     castling_rights: u8,
-    en_passant: Option<Square>,
+    pub en_passant: Option<Square>,
     halfmove_clock: u8,
     fullmove_clock: u16,
 }

@@ -32,3 +32,23 @@ fn test_all_starting_pawn_moves() {
     let black_moves = generate_moves(&board, Color::Black);
     assert_eq!(black_moves.len(), 16);
 }
+
+#[test]
+fn test_pawn_captures() {
+    let mut board = Board::new();
+
+    board.set_piece(Square(28), Some(Piece { piece_type: PieceType::Pawn, color: Color::White })); //e4
+
+    board.set_piece(Square(35), Some(Piece { piece_type: PieceType::Pawn, color: Color::Black })); //d5
+    board.set_piece(Square(37), Some(Piece { piece_type: PieceType::Pawn, color: Color::Black })); //f5
+
+    let moves = generate_pawn_moves(&board, Square(28), Color::White);
+
+    assert_eq!(moves.len(), 3);
+
+    let capture_count = moves.iter()
+            .filter(|matched| matched.to.0 == 35 || matched.to.0 == 37)
+            .count();
+
+    assert_eq!(capture_count, 2);
+}
