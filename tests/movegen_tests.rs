@@ -52,3 +52,39 @@ fn test_pawn_captures() {
 
     assert_eq!(capture_count, 2);
 }
+
+#[test]
+fn test_en_passant_capture() {
+    let mut board = Board::new();
+
+    board.set_piece(Square(35), Some(Piece { piece_type: PieceType::Pawn, color: Color::White }));
+
+    board.en_passant = Some(Square(42));
+
+    let moves = generate_pawn_moves(&board, Square(35), Color::White);
+
+    let count = moves.iter()
+            .filter(|matched| matched.special_move == Some(SpecialMove::EnPassant))
+            .count();
+
+    assert_eq!(count, 1);
+}
+
+#[test]
+fn test_pawn_captures_boundaries() {
+    let mut board = Board::new();
+
+    board.set_piece(Square(24), Some(Piece { piece_type: PieceType::Pawn, color: Color::White }));
+    board.set_piece(Square(33), Some(Piece { piece_type: PieceType::Pawn, color: Color::Black }));
+
+
+    board.set_piece(Square(31), Some(Piece { piece_type: PieceType::Pawn, color: Color::White }));
+    board.set_piece(Square(38), Some(Piece { piece_type: PieceType::Pawn, color: Color::Black }));
+
+
+    let moves_24 = generate_pawn_moves(&board, Square(24), Color::White);
+    assert_eq!(moves_24.len(), 2);
+
+    let moves_31 = generate_pawn_moves(&board, Square(31), Color::White);
+    assert_eq!(moves_31.len(), 2);
+}
