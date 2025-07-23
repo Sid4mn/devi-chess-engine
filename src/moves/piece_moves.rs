@@ -1,5 +1,5 @@
 use crate::types::*;
-use crate::board::Board;
+use crate::board::{Board, BoardRepresentation};
 
 const KNIGHT_DIRS: [i8; 8] = [17, 15, 10, 6, -6, -10, -15, -17];
 const KING_DIRS: [i8; 8] = [7, 8, 9, -1, 1, -7, -8, -9];
@@ -94,7 +94,7 @@ pub fn generate_pawn_capture(board: &Board, square: Square, color: Color, moves:
         }
     }
 
-    if let Some(en_passant_square) = board.en_passant {
+    if let Some(en_passant_square) = board.en_passant() {
         let square_idx = square.0 as i8;
         let en_passant_idx: i8 = en_passant_square.0 as i8;
         let file = square_idx % 8;

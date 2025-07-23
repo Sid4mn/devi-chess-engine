@@ -59,7 +59,7 @@ fn test_en_passant_capture() {
 
     board.set_piece(Square(35), Some(Piece { piece_type: PieceType::Pawn, color: Color::White }));
 
-    board.en_passant = Some(Square(42));
+    board.set_en_passant(Some(Square(42)));
 
     let moves = generate_pawn_moves(&board, Square(35), Color::White);
 

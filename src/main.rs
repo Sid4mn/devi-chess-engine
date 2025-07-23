@@ -1,6 +1,6 @@
 use devi::moves::generate_moves;
 use devi::types::*;
-use devi::board::*;
+use devi::board::{Board, BoardRepresentation};
 // use devi::moves::*;
 // use devi::utils::*;
 // use devi::search::*;
