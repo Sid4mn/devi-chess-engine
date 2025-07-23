@@ -52,9 +52,14 @@ This project explores chess engine algorithms through the lens of high-performan
 
 **Week 1**: Complete move generation + legality validation
 - [x] Board representation
-- [x] Pawn moves (forward)
-- [x] Pawn captures
-- [ ] All piece types
+- [x] All piece move generation
+  - [x] Pawns (forward, double, captures, en passant)
+  - [x] Knights (L-shaped moves with boundary checking)
+  - [x] Kings (8 adjacent squares)
+  - [x] Rooks (sliding horizontal/vertical)
+  - [x] Bishops (sliding diagonal)
+  - [x] Queens (rook + bishop combined)
+
 - [ ] Legal move filtering
 - [ ] Perft validation suite
 
