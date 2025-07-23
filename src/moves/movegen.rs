@@ -1,6 +1,6 @@
-use crate::moves::*;
+use crate::moves::piece_moves::*;
 use crate::types::*;
-use crate::board::Board;
+use crate::board::{Board, BoardRepresentation};
 
 pub fn generate_moves(board: &Board, color: Color) -> Vec<Move> {
     let mut moves = Vec::new();
