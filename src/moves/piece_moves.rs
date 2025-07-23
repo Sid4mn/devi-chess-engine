@@ -1,6 +1,12 @@
 use crate::types::*;
 use crate::board::Board;
 
+const KNIGHT_DIRS: [i8; 8] = [17, 15, 10, 6, -6, -10, -15, -17];
+const KING_DIRS: [i8; 8] = [7, 8, 9, -1, 1, -7, -8, -9];
+const ROOK_DIRS: [i8; 4] = [8, -8, 1, -1];
+const BISHOP_DIRS: [i8; 4] = [9, -9, 7, -7];
+
+// PAWN MOVES ================================
 pub fn generate_pawn_moves(board: &Board, square: Square, color: Color) -> Vec<Move> {
     let mut moves = Vec::new();
     let square_idx = square.0 as i8;
@@ -90,7 +96,7 @@ pub fn generate_pawn_capture(board: &Board, square: Square, color: Color, moves:
 
     if let Some(en_passant_square) = board.en_passant {
         let square_idx = square.0 as i8;
-        let en_passant_idx = en_passant_square.0 as i8;
+        let en_passant_idx: i8 = en_passant_square.0 as i8;
         let file = square_idx % 8;
         
         let left_capture = square_idx + (7 * direction_mul);
@@ -105,7 +111,221 @@ pub fn generate_pawn_capture(board: &Board, square: Square, color: Color, moves:
         }
 
     }
+}
+
+// KNIGHT MOVES ================================
+pub fn generate_knight_moves(board: &Board, square: Square, color: Color) -> Vec<Move> {
+    let mut moves = Vec::new();
+
+    let square_idx = square.0 as i8;
+
+    let file = square_idx % 8;
+    let rank = square_idx / 8;
+
+    for &dir in KNIGHT_DIRS.iter() {
+        let target_idx = square_idx + dir;
+        
+        if target_idx < 0 || target_idx >= 64 {
+            continue;
+        } 
+
+        let target_file = target_idx % 8;
+        let target_rank = target_idx / 8;
+        
+        //handles file wrap check (knights should not be able to wrap around board edges)
+        if (file - target_file).abs() > 2 || (rank - target_rank).abs() > 2 {
+            continue;
+        }
+
+        let target_square = Square(target_idx as u8);
+
+       //check target_square, if enemy/empty
+       match board.get_piece(target_square) {
+        None => {
+            moves.push(Move { 
+                from: square, 
+                to: target_square, 
+                special_move: None 
+            });
+        }
+        Some(piece) if piece.color != color => {
+            moves.push(Move {
+                from: square,
+                to: target_square,
+                special_move: None,
+            });
+        }
+        Some(ally_piece) => {
+            continue;
+        }
+       }
+
+    }
+    moves
+}
+
+// KING MOVES ================================
+pub fn generate_king_moves(board: &Board, square: Square, color: Color) -> Vec<Move> {
+    let mut moves = Vec::new();
+    let square_idx = square.0 as i8;
+    let file = square_idx % 8;
+    let rank = square_idx / 8;
+
+    for &dir in KING_DIRS.iter() {
+        let target_idx = square_idx + dir;
+        if target_idx < 0 || target_idx >= 64 {
+            continue;
+        }
+
+        let target_file = target_idx % 8;
+        let target_rank = target_idx / 8;
+
+        //handle king movement wrapping around the board
+        if (file - target_file).abs() > 1 || (rank - target_rank).abs() > 1 {
+            continue;
+        }
+
+        let target_square = Square(target_idx as u8);
+
+        match board.get_piece(target_square) {
+        None => {
+            moves.push(Move { 
+                from: square, 
+                to: target_square, 
+                special_move: None 
+            });
+        }
+        Some(piece) if piece.color != color => {
+            moves.push(Move {
+                from: square,
+                to: target_square,
+                special_move: None,
+            });
+        }
+        Some(ally_piece) => {
+            continue;
+        }
+       }
+    }
+    moves
+}
+
+// ROOK MOVES ================================
+pub fn generate_rook_moves(board: &Board, square: Square, color: Color) -> Vec<Move> {
+    let mut moves = Vec::new();
+    let square_idx = square.0 as i8; 
+    let file = square_idx % 8;
+
+    for &dir in ROOK_DIRS.iter() {
+        let mut step = 1;
+
+        loop {
+            let target_idx = square_idx + (dir * step);
+
+            if target_idx < 0 || target_idx >= 64 {
+                break;
+            }
+            let target_file = target_idx % 8;
+
+            if (dir == 1 && target_file <= file && step > 1) {
+                break;
+            }
+            if (dir == -1 && target_file >= file && step > 1) {
+                break;
+            }
+
+            let target_square = Square(target_idx as u8);
+
+            match board.get_piece(target_square) {
+                None => {
+                    moves.push(Move { 
+                        from: square, 
+                        to: target_square, 
+                        special_move: None 
+                    });
+                }
+                Some(piece) if piece.color != color => {
+                    moves.push(Move { 
+                        from: square, 
+                        to: target_square, 
+                        special_move: None 
+                    });
+                    break;
+                }
+                Some(ally_piece) => {
+                    break;
+                }
+            }
+
+            step += 1;
+        }
+    }
 
 
+    moves
+}
 
+// BISHOP MOVES ================================
+pub fn generate_bishop_moves(board: &Board, square: Square, color: Color) -> Vec<Move> {
+    let mut moves = Vec::new();
+    let square_idx = square.0 as i8; 
+    
+    let file = square_idx % 8;
+    let rank = square_idx / 8;
+
+    for &dir in BISHOP_DIRS.iter() {
+        let mut step = 1;
+
+        loop {
+            let target_idx = square_idx + (dir * step);
+
+            if target_idx < 0 || target_idx >= 64 {
+                break;
+            }
+            let target_file = target_idx % 8;
+            let target_rank = target_idx / 8;
+
+            if (file - target_file).abs() != (rank - target_rank).abs() {
+                break;
+            }
+
+            let target_square = Square(target_idx as u8);
+
+            match board.get_piece(target_square) {
+                None => {
+                    moves.push(Move { 
+                        from: square, 
+                        to: target_square, 
+                        special_move: None 
+                    });
+                }
+                Some(piece) if piece.color != color => {
+                    moves.push(Move { 
+                        from: square, 
+                        to: target_square, 
+                        special_move: None 
+                    });
+                    break;
+                }
+                Some(ally_piece) => {
+                    break;
+                }
+            }
+
+            step += 1;
+        }
+    }
+
+
+    moves
+}
+
+// QUEEN MOVES ================================
+pub fn generate_queen_moves(board: &Board, square: Square, color: Color) -> Vec<Move> {
+    let mut moves = Vec::new();
+
+    moves.extend(generate_rook_moves(board, square, color));
+    moves.extend(generate_bishop_moves(board, square, color));
+
+    moves
 }
