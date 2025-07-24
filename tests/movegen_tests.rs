@@ -315,3 +315,27 @@ fn test_queen_captures_and_blocks() {
     let captures = moves.iter().filter(|m| m.to.0 == 36).count();
     assert_eq!(captures, 1);
 }
+
+#[test]
+fn test_find_starting_position_king() {
+    let mut board = Board::new();
+    board.setup_starting_position();
+
+    assert_eq!(board.find_king(Color::White), Some(Square(4)));
+    assert_eq!(board.find_king(Color::Black), Some(Square(60)));
+
+    board.set_piece(Square(35), Some(Piece { piece_type: PieceType::King, color: Color::Black }));
+}
+
+#[test]
+fn test_find_random_position_king() {
+    let mut board = Board::new();
+
+    board.set_piece(Square(35), Some(Piece { piece_type: PieceType::King, color: Color::Black }));
+    board.set_piece(Square(39), Some(Piece { piece_type: PieceType::King, color: Color::White }));
+
+
+    assert_eq!(board.find_king(Color::White), Some(Square(39)));
+    assert_eq!(board.find_king(Color::Black), Some(Square(35)));
+
+}

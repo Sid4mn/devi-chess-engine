@@ -4,21 +4,29 @@ A chess engine written in Rust to understand chess engine algorithms, their hist
 This project explores chess engine algorithms through the lens of high-performance computing, demonstrating system-level optimizations and clean Rust development.
 
 ## Project Philosophy
-**Learn → Build → Measure → Optimize**
+**Hypothesis → Experiment → Measure → Analyze → Document**
 
 ## Inspiration & Learning Resources
 - **Book**: Chess Algo - Noah Caplinger - modern algorithmic approach to chess programming and search optimization
 - **Book**: Computers, chess and long-range planning - M.M. Botvinnik - foundational theory on strategic planning and evaluation from a chess grandmaster's perspective
-- Understanding the evolution of chess engines and classic algorithms
-- Exploring how modern Rust can express these algorithms intuitively
+- MIT 6.5840 & Berkeley CS267 lecture sets (distributed + parallel fundamentals)
+- Brendan Gregg flamegraph toolkit for CPU hotspot profiling
+- Research papers on Lazy SMP, Jamboree search, and transposition-table design
+
+
+### Current Implementation
+- **Board Representation**: Trait-based abstraction ready for bitboard optimization
+- **Move Generation**: Complete implementation for all piece types with comprehensive testing
+- **Search Foundation**: Alpha-beta pruning with iterative deepening (in progress)
+- **Instrumentation**: Built-in performance counters and profiling hooks (TBD)
 
 ## Features (planned)
 
-### v1 - Basic Minimax
+### v1 - Baseline Alpha–Beta
 - Array board + piece lists
-- Material evaluation + piece-square tables
-- Fixed-depth minimax (depth 4)
-- **Baseline metrics**: nodes/second, flamegraph profile
+- Material evaluation + piece-square-table evaluation
+- Fixed-depth alpha–beta (depth 4)
+- **Baseline metrics**: nodes/second, single-thread flamegraph
 
 ### v2 - Alpha-Beta Pruning  
 - Add alpha-beta pruning to v1
@@ -59,9 +67,10 @@ This project explores chess engine algorithms through the lens of high-performan
   - [x] Rooks (sliding horizontal/vertical)
   - [x] Bishops (sliding diagonal)
   - [x] Queens (rook + bishop combined)
-
-- [ ] Legal move filtering
+- [x] Trait-based architecture
+- [ ] Legal move filtering with check detection
 - [ ] Perft validation suite
+- [ ] Single-threaded performance baseline (needs benchmarking framework)
 
 **Week 2**: v1 Minimax engine
 - [ ] Material + PST evaluation
