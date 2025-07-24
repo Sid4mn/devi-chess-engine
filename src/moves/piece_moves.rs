@@ -227,10 +227,10 @@ pub fn generate_rook_moves(board: &Board, square: Square, color: Color) -> Vec<M
             }
             let target_file = target_idx % 8;
 
-            if (dir == 1 && target_file <= file && step > 1) {
+            if dir == 1 && target_file <= file && step > 1 {
                 break;
             }
-            if (dir == -1 && target_file >= file && step > 1) {
+            if dir == -1 && target_file >= file && step > 1 {
                 break;
             }
 

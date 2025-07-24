@@ -1,4 +1,4 @@
-use crate::types::*;
+use crate::{moves::generate_moves, types::*};
 use super::traits::{BoardRepresentation, UndoMove};
 
 pub struct ArrayBoard {
@@ -109,21 +109,116 @@ impl BoardRepresentation for ArrayBoard {
         self.squares = [None; 64];
     }
     
-    //Stub the methods TBD
     fn make_move(&mut self, _mv: &Move) -> UndoMove {
-        todo!("Implement make_move")
+        let undo = UndoMove {
+            captured_piece: self.get_piece(_mv.to),
+            previous_en_passant: self.en_passant,
+            previous_castling_rights: self.castling_rights,
+            previous_halfmove_clock: self.halfmove_clock,
+            previous_to_move: self.to_move,
+        };
+
+        let moving_piece = self.get_piece(_mv.from).expect("No piece at square");
+
+        self.set_piece(_mv.from, None);
+        self.set_piece(_mv.to, Some(moving_piece));
+        
+        if let Some(special) = &_mv.special_move {
+            match special {
+                SpecialMove::EnPassant => {
+                    let captured_pawn_square = match moving_piece.color {
+                        Color::Black => Square(_mv.to.0 - 8),
+                        Color::White => Square(_mv.to.0 + 8),
+                    };
+                    self.set_piece(captured_pawn_square, None);
+                }
+
+                // TODO: Impleement other special moves
+                _ => {}
+            }
+        }
+
+        self.to_move = match self.to_move {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        };
+
+        self.en_passant = None;
+
+        if moving_piece.piece_type == PieceType::Pawn {
+            let move_distance = (_mv.to.0 as i8 - _mv.from.0 as i8).abs();
+            if move_distance == 16 {
+                let en_passant_square = Square((_mv.from.0 + _mv.to.0)/2);
+                self.en_passant = Some(en_passant_square);
+            }
+        }
+
+        if moving_piece.piece_type == PieceType::Pawn || undo.captured_piece.is_some() {
+            self.halfmove_clock = 0;
+        } else {
+            self.halfmove_clock += 1;
+        }
+
+        if self.to_move == Color::White {
+            self.fullmove_clock += 1;
+        }
+
+        undo
+
     }
     
     fn unmake_move(&mut self, _mv: &Move, _undo: UndoMove) {
-        todo!("Implement unmake_move")
+        let moving_piece = self.get_piece(_mv.to).expect("No piece at destination");
+
+        self.set_piece(_mv.from, Some(moving_piece));
+        self.set_piece(_mv.to, _undo.captured_piece);
+
+        if let Some(special) = &_mv.special_move {
+            match special {
+                SpecialMove::EnPassant => {
+                    let captured_pawn_square = match moving_piece.color {
+                        Color::White => Square(_mv.to.0 - 8),
+                        Color::Black => Square(_mv.to.0 + 8),
+                    };
+                    let captured_pawn = Piece {
+                        piece_type: PieceType::Pawn,
+                        color: match moving_piece.color {
+                            Color::White => Color::Black,
+                            Color::Black => Color::White,
+                        }
+                    };
+                    self.set_piece(captured_pawn_square, Some(captured_pawn));
+                }
+                _ => {}
+            }
+        }
+
+        self.to_move = _undo.previous_to_move;
+        self.en_passant = _undo.previous_en_passant;
+        self.castling_rights = _undo.previous_castling_rights;
+        self.halfmove_clock = _undo.previous_halfmove_clock;
+
     }
     
     fn find_king(&self, _color: Color) -> Option<Square> {
-        todo!("Implement find_king")
+        for square_idx in 0..64 {
+            if self.get_piece(Square(square_idx as u8)) == Some(Piece { piece_type: PieceType::King, color: _color }) {
+                return Some(Square(square_idx as u8))
+            }
+        }
+        None
     }
     
     fn is_in_check(&self, _color: Color) -> bool {
-        todo!("Implement is_in_check")
+        let king_location = match self.find_king(_color) {
+            Some(square) => square,
+            None => return false,
+        };
+
+        let opponent_color = if _color == Color::White { Color::Black } else { Color::White };
+        let moves = generate_moves(self, opponent_color);
+
+        return moves.iter().any(|m| m.to == king_location)
     }
     
     fn is_square_attacked(&self, _square: Square, _by_color: Color) -> bool {
@@ -133,7 +228,7 @@ impl BoardRepresentation for ArrayBoard {
     fn to_fen(&self) -> String { 
         todo!("Implement to_fen")
     }
-    fn from_fen(fen: &str) -> Result<Self, String> where Self: Sized {
+    fn from_fen(_fen: &str) -> Result<Self, String> where Self: Sized {
         todo!("Implement from_fen")
     }
 }

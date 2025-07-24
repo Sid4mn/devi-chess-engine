@@ -1,3 +1,4 @@
+use devi::moves::generate_legal_moves;
 use devi::types::*;
 use devi::board::*;
 
@@ -51,4 +52,9 @@ fn test_starting_position_setup() {
     // Test empty center
     assert!(board.is_empty(Square(28))); // e4
     assert!(board.is_empty(Square(35))); // d5
+
+    let black_legal_moves = generate_legal_moves(&mut board, Color::Black);
+
+    assert_eq!(black_legal_moves.len(), 20);
+
 }
