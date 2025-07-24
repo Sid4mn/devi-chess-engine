@@ -228,7 +228,7 @@ impl BoardRepresentation for ArrayBoard {
     fn to_fen(&self) -> String { 
         todo!("Implement to_fen")
     }
-    fn from_fen(fen: &str) -> Result<Self, String> where Self: Sized {
+    fn from_fen(_fen: &str) -> Result<Self, String> where Self: Sized {
         todo!("Implement from_fen")
     }
 }

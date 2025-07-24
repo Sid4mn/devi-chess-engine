@@ -68,7 +68,7 @@ This project explores chess engine algorithms through the lens of high-performan
   - [x] Bishops (sliding diagonal)
   - [x] Queens (rook + bishop combined)
 - [x] Trait-based architecture
-- [ ] Legal move filtering with check detection
+- [x] Legal move filtering with check detection
 - [ ] Perft validation suite
 - [ ] Single-threaded performance baseline (needs benchmarking framework)
 

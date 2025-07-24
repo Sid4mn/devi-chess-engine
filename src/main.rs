@@ -1,4 +1,4 @@
-use devi::moves::generate_moves;
+use devi::moves::{generate_legal_moves, generate_moves};
 use devi::types::*;
 use devi::board::{Board, BoardRepresentation};
 // use devi::moves::*;
@@ -10,8 +10,12 @@ fn main() {
     println!("devi Chess Engine v0.1.0");
     println!("------------------------");
 
-    let mut board = Board::new();    
+    let mut board = Board::new();
     board.setup_starting_position();
+
+
+    let white_legal_moves = generate_legal_moves(&mut board, Color::White);    
+    println!("White has {} legal moves.", white_legal_moves.len());
 
     //starting positions
     println!("Piece at a2: {:?}", board.get_piece(Square(8)));
