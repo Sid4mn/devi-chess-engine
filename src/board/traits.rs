@@ -37,7 +37,6 @@ pub trait BoardRepresentation {
     // Board setup/manipulation
     fn setup_starting_position(&mut self);
     fn clear(&mut self);
-    
     // Utility methods
     fn count_pieces(&self, piece_type: PieceType, color: Color) -> u8 {
         let mut count = 0;
