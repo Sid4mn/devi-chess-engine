@@ -132,8 +132,14 @@ pub fn generate_knight_moves(board: &Board, square: Square, color: Color) -> Vec
         let target_file = target_idx % 8;
         let target_rank = target_idx / 8;
         
+        // if (file - target_file).abs() > 2 || (rank - target_rank).abs() > 2 {
+        //     continue;
+        // }
         //handles file wrap check (knights should not be able to wrap around board edges)
-        if (file - target_file).abs() > 2 || (rank - target_rank).abs() > 2 {
+
+        let file_diff = (file - target_file).abs();
+        let rank_diff = (rank - target_rank).abs();
+        if !((file_diff == 2 && rank_diff == 1) || (file_diff == 1 && rank_diff == 2)) {
             continue;
         }
 
@@ -155,7 +161,7 @@ pub fn generate_knight_moves(board: &Board, square: Square, color: Color) -> Vec
                 special_move: None,
             });
         }
-        Some(ally_piece) => {
+        Some(_ally_piece) => {
             continue;
         }
        }
@@ -202,7 +208,7 @@ pub fn generate_king_moves(board: &Board, square: Square, color: Color) -> Vec<M
                 special_move: None,
             });
         }
-        Some(ally_piece) => {
+        Some(_ally_piece) => {
             continue;
         }
        }
@@ -227,10 +233,10 @@ pub fn generate_rook_moves(board: &Board, square: Square, color: Color) -> Vec<M
             }
             let target_file = target_idx % 8;
 
-            if dir == 1 && target_file <= file && step > 1 {
+            if dir == 1 && target_file <= file {
                 break;
             }
-            if dir == -1 && target_file >= file && step > 1 {
+            if dir == -1 && target_file >= file {
                 break;
             }
 
@@ -252,7 +258,7 @@ pub fn generate_rook_moves(board: &Board, square: Square, color: Color) -> Vec<M
                     });
                     break;
                 }
-                Some(ally_piece) => {
+                Some(_ally_piece) => {
                     break;
                 }
             }
@@ -307,7 +313,7 @@ pub fn generate_bishop_moves(board: &Board, square: Square, color: Color) -> Vec
                     });
                     break;
                 }
-                Some(ally_piece) => {
+                Some(_ally_piece) => {
                     break;
                 }
             }

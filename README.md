@@ -69,7 +69,7 @@ This project explores chess engine algorithms through the lens of high-performan
   - [x] Queens (rook + bishop combined)
 - [x] Trait-based architecture
 - [x] Legal move filtering with check detection
-- [ ] Perft validation suite
+- [x] Perft validation suite
 - [ ] Single-threaded performance baseline (needs benchmarking framework)
 
 **Week 2**: v1 Minimax engine
