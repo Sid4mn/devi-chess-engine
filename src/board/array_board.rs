@@ -1,5 +1,6 @@
 use crate::{moves::generate_moves, types::*};
 use super::traits::{BoardRepresentation, UndoMove};
+use crate::types::{WK, WQ, BK, BQ};
 
 pub struct ArrayBoard {
     squares: [Option<Piece>; 64],
@@ -115,6 +116,7 @@ impl BoardRepresentation for ArrayBoard {
             previous_en_passant: self.en_passant,
             previous_castling_rights: self.castling_rights,
             previous_halfmove_clock: self.halfmove_clock,
+            previous_fullmove_clock: self.fullmove_clock,
             previous_to_move: self.to_move,
         };
 
@@ -133,7 +135,33 @@ impl BoardRepresentation for ArrayBoard {
                     self.set_piece(captured_pawn_square, None);
                 }
 
-                // TODO: Impleement other special moves
+                SpecialMove::Castle => {
+                    let king_side = _mv.to.0 > _mv.from.0;
+                    let (rook_from, rook_to) = match (moving_piece.color, king_side) {
+                                (Color::White, true ) => (Square(7),  Square(5)),
+                                (Color::White, false) => (Square(0),  Square(3)),
+                                (Color::Black, true ) => (Square(63), Square(61)),
+                                (Color::Black, false) => (Square(56), Square(59)),
+                            };
+                    if let Some(rook) = self.get_piece(rook_from) {
+                        self.set_piece(rook_from, None);
+                        self.set_piece(rook_to,   Some(rook));
+                    } else {
+                        debug_assert!(false, "rook missing during castling");
+                    }
+
+                    self.castling_rights &= match moving_piece.color {
+                        Color::White => !(WK | WQ),
+                        Color::Black => !(BK | BQ),
+                    };
+                }
+
+                SpecialMove::Promotion => {
+                    if let Some(promoted_piece_type) = _mv.promotion {
+                        let promoted_piece = Piece::new(promoted_piece_type, moving_piece.color);
+                        self.set_piece(_mv.to, Some(promoted_piece));
+                    }
+                }
                 _ => {}
             }
         }
@@ -189,6 +217,25 @@ impl BoardRepresentation for ArrayBoard {
                     };
                     self.set_piece(captured_pawn_square, Some(captured_pawn));
                 }
+                SpecialMove::Castle => {
+                        let king_side = _mv.from.0 < _mv.to.0;
+                        let (rook_to, rook_from) = match (moving_piece.color, king_side)  {
+                        (Color::White, true ) => (Square(7),  Square(5)),
+                        (Color::White, false) => (Square(0),  Square(3)),
+                        (Color::Black, true ) => (Square(63), Square(61)),
+                        (Color::Black, false) => (Square(56), Square(59)),
+                    };
+                    if let Some(rook) = self.get_piece(rook_from) {
+                        self.set_piece(rook_from, None);
+                        self.set_piece(rook_to,   Some(rook));
+                    } else {
+                        debug_assert!(false, "rook missing during unmake of castling");
+                    }
+                }
+                SpecialMove::Promotion => {
+                    self.set_piece(_mv.to, Some(Piece::new(PieceType::Pawn, moving_piece.color)));
+                }
+                
                 _ => {}
             }
         }
@@ -197,6 +244,7 @@ impl BoardRepresentation for ArrayBoard {
         self.en_passant = _undo.previous_en_passant;
         self.castling_rights = _undo.previous_castling_rights;
         self.halfmove_clock = _undo.previous_halfmove_clock;
+        self.fullmove_clock = _undo.previous_fullmove_clock;
 
     }
     

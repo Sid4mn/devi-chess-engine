@@ -7,3 +7,6 @@ edition = "2021"
 rand = "0.8"
 once_cell = "1.19"
 clap = { version = "4.0", features = ["derive"]}
+
+[profile.dev]
+overflow-checks = true

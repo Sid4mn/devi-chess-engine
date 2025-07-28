@@ -1,12 +1,6 @@
-use devi::moves::{generate_legal_moves, generate_moves, perft};
-use devi::types::*;
+use devi::moves::perft::perft_divide;
+use devi::moves::{perft};
 use devi::board::{Board, BoardRepresentation};
-
-fn square_to_string(square: Square) -> String {
-    let file = (square.0 % 8) as u8 + b'a';
-    let rank = (square.0 / 8) + 1;
-    format!("{}{}", file as char, rank)
-}
 
 fn main() {
     println!("devi Chess Engine v0.1.0");
@@ -21,6 +15,9 @@ fn main() {
     println!("Perft(3): {}", perft(&mut board, 3));//Expected: 8902
     // println!("Perft(4): {}", perft(&mut board, 4));//Expected: 197281
     // println!("Perft(5): {}", perft(&mut board, 5));//Expected: 4865609
+
+    println!("P divide (3): {}", perft_divide(&mut board, 3));
+    println!(" - P divide (4): {}", perft_divide(&mut board, 4));
 
 
 //     let white_legal_moves = generate_legal_moves(&mut board, Color::White);    

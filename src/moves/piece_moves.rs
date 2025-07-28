@@ -24,6 +24,7 @@ pub fn generate_pawn_moves(board: &Board, square: Square, color: Color) -> Vec<M
                 from: square,
                 to: target_square,
                 special_move: None,
+                promotion: None,
             });
 
             let starting_rank = match color {
@@ -40,6 +41,7 @@ pub fn generate_pawn_moves(board: &Board, square: Square, color: Color) -> Vec<M
                             from: square,
                             to: target_square2,
                             special_move: None,
+                            promotion: None,
                         });
                     }
                 }
@@ -71,6 +73,7 @@ pub fn generate_pawn_capture(board: &Board, square: Square, color: Color, moves:
                         from: square,
                         to: target_square,
                         special_move: None,
+                        promotion: None,
                     });
                 }
             }
@@ -88,6 +91,7 @@ pub fn generate_pawn_capture(board: &Board, square: Square, color: Color, moves:
                         from: square,
                         to: target_square,
                         special_move: None,
+                        promotion: None,
                     });
                 }
             }
@@ -106,7 +110,8 @@ pub fn generate_pawn_capture(board: &Board, square: Square, color: Color, moves:
             moves.push(Move {
                 from : square,
                 to : en_passant_square,
-                special_move: Some(SpecialMove::EnPassant)
+                special_move: Some(SpecialMove::EnPassant),
+                promotion: None,
             });
         }
 
@@ -132,14 +137,8 @@ pub fn generate_knight_moves(board: &Board, square: Square, color: Color) -> Vec
         let target_file = target_idx % 8;
         let target_rank = target_idx / 8;
         
-        // if (file - target_file).abs() > 2 || (rank - target_rank).abs() > 2 {
-        //     continue;
-        // }
         //handles file wrap check (knights should not be able to wrap around board edges)
-
-        let file_diff = (file - target_file).abs();
-        let rank_diff = (rank - target_rank).abs();
-        if !((file_diff == 2 && rank_diff == 1) || (file_diff == 1 && rank_diff == 2)) {
+        if (file - target_file).abs() > 2 || (rank - target_rank).abs() > 2 {
             continue;
         }
 
@@ -151,7 +150,8 @@ pub fn generate_knight_moves(board: &Board, square: Square, color: Color) -> Vec
             moves.push(Move { 
                 from: square, 
                 to: target_square, 
-                special_move: None 
+                special_move: None,
+                promotion: None,
             });
         }
         Some(piece) if piece.color != color => {
@@ -159,6 +159,7 @@ pub fn generate_knight_moves(board: &Board, square: Square, color: Color) -> Vec
                 from: square,
                 to: target_square,
                 special_move: None,
+                promotion: None,
             });
         }
         Some(_ally_piece) => {
@@ -198,7 +199,8 @@ pub fn generate_king_moves(board: &Board, square: Square, color: Color) -> Vec<M
             moves.push(Move { 
                 from: square, 
                 to: target_square, 
-                special_move: None 
+                special_move: None,
+                promotion: None,
             });
         }
         Some(piece) if piece.color != color => {
@@ -206,6 +208,7 @@ pub fn generate_king_moves(board: &Board, square: Square, color: Color) -> Vec<M
                 from: square,
                 to: target_square,
                 special_move: None,
+                promotion: None,
             });
         }
         Some(_ally_piece) => {
@@ -226,44 +229,49 @@ pub fn generate_rook_moves(board: &Board, square: Square, color: Color) -> Vec<M
         let mut step = 1;
 
         loop {
-            let target_idx = square_idx + (dir * step);
+            if let Some(intermediate) = dir.checked_mul(step) {
+                if let Some(target_idx) = square_idx.checked_add(intermediate) {
 
-            if target_idx < 0 || target_idx >= 64 {
-                break;
-            }
-            let target_file = target_idx % 8;
-
-            if dir == 1 && target_file <= file {
-                break;
-            }
-            if dir == -1 && target_file >= file {
-                break;
-            }
-
-            let target_square = Square(target_idx as u8);
-
-            match board.get_piece(target_square) {
-                None => {
-                    moves.push(Move { 
-                        from: square, 
-                        to: target_square, 
-                        special_move: None 
-                    });
-                }
-                Some(piece) if piece.color != color => {
-                    moves.push(Move { 
-                        from: square, 
-                        to: target_square, 
-                        special_move: None 
-                    });
+                if target_idx < 0 || target_idx >= 64 {
                     break;
                 }
-                Some(_ally_piece) => {
+                let target_file = target_idx % 8;
+
+                if dir == 1 && target_file <= file {
                     break;
                 }
-            }
+                if dir == -1 && target_file >= file {
+                    break;
+                }
 
-            step += 1;
+                let target_square = Square(target_idx as u8);
+
+                match board.get_piece(target_square) {
+                    None => {
+                        moves.push(Move { 
+                            from: square, 
+                            to: target_square, 
+                            special_move: None,
+                            promotion: None,
+                        });
+                    }
+                    Some(piece) if piece.color != color => {
+                        moves.push(Move { 
+                            from: square, 
+                            to: target_square, 
+                            special_move: None,
+                            promotion: None,
+                        });
+                        break;
+                    }
+                    Some(_ally_piece) => {
+                        break;
+                    }
+                }
+
+                step += 1;
+                    }
+                }
         }
     }
 
@@ -283,43 +291,47 @@ pub fn generate_bishop_moves(board: &Board, square: Square, color: Color) -> Vec
         let mut step = 1;
 
         loop {
-            let target_idx = square_idx + (dir * step);
+            if let Some(intermediate) = dir.checked_mul(step) {
+                if let Some(target_idx) = square_idx.checked_add(intermediate) {
+                    if target_idx < 0 || target_idx >= 64 {
+                        break;
+                    }
+                    let target_file = target_idx % 8;
+                    let target_rank = target_idx / 8;
 
-            if target_idx < 0 || target_idx >= 64 {
-                break;
-            }
-            let target_file = target_idx % 8;
-            let target_rank = target_idx / 8;
+                    if (file - target_file).abs() != (rank - target_rank).abs() {
+                        break;
+                    }
 
-            if (file - target_file).abs() != (rank - target_rank).abs() {
-                break;
-            }
+                    let target_square = Square(target_idx as u8);
 
-            let target_square = Square(target_idx as u8);
+                    match board.get_piece(target_square) {
+                        None => {
+                            moves.push(Move { 
+                                from: square, 
+                                to: target_square, 
+                                special_move: None,
+                                promotion: None,
+                            });
+                        }
+                        Some(piece) if piece.color != color => {
+                            moves.push(Move { 
+                                from: square, 
+                                to: target_square, 
+                                special_move: None,
+                                promotion: None,
+                            });
+                            break;
+                        }
+                        Some(_ally_piece) => {
+                            break;
+                        }
+                    }
 
-            match board.get_piece(target_square) {
-                None => {
-                    moves.push(Move { 
-                        from: square, 
-                        to: target_square, 
-                        special_move: None 
-                    });
+                    step += 1;
                 }
-                Some(piece) if piece.color != color => {
-                    moves.push(Move { 
-                        from: square, 
-                        to: target_square, 
-                        special_move: None 
-                    });
-                    break;
-                }
-                Some(_ally_piece) => {
-                    break;
-                }
             }
-
-            step += 1;
-        }
+        }   
     }
 
 
