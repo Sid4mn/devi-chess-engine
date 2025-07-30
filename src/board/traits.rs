@@ -6,6 +6,7 @@ pub struct UndoMove {
     pub previous_en_passant: Option<Square>,
     pub previous_castling_rights: u8,
     pub previous_halfmove_clock: u8,
+    pub previous_fullmove_clock: u16,
     pub previous_to_move: Color,
 }
 pub trait BoardRepresentation {

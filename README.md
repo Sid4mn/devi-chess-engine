@@ -72,6 +72,17 @@ This project explores chess engine algorithms through the lens of high-performan
 - [x] Perft validation suite
 - [ ] Single-threaded performance baseline (needs benchmarking framework)
 
+## Perft Verification
+
+| Depth | Nodes       | Status |
+|-------|-------------|--------|
+| 1     | 20          | ✅     |
+| 2     | 400         | ✅     |
+| 3     | 8,902       | ✅     |
+| 4     | 197,281     | ✅     |
+| 5     | 4,865,609   | ✅     |
+| 6     | 119,060,324 | ✅     |
+
 **Week 2**: v1 Minimax engine
 - [ ] Material + PST evaluation
 - [ ] Fixed-depth minimax

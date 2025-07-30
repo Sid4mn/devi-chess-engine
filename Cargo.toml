@@ -2,8 +2,15 @@
 name = "devi"
 version = "0.1.0"
 edition = "2021"
+authors = ["Siddhant Shettiwar <sid4mndev@gmail.com>"]
+keywords = ["chess", "engine", "parallel", "search"]
 
 [dependencies]
 rand = "0.8"
 once_cell = "1.19"
 clap = { version = "4.0", features = ["derive"]}
+# rayon = "1.8" 
+# clap = "4.0"
+
+[profile.dev]
+overflow-checks = true
