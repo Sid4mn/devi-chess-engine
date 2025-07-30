@@ -2,21 +2,24 @@ use std::time::Instant;
 use crate::board::{Board, BoardRepresentation};
 use crate::moves::{generate_legal_moves};
 
-pub fn perft(board: &mut Board, depth:u32) -> u64 {
+pub fn perft(board: &mut Board, depth: u32) -> u64 {
     if depth == 0 {
-        return 1
+        return 1;
     }
-
+    
     let mut nodes = 0;
-    let color_to_move = board.to_move();
-    let legal_moves = generate_legal_moves(board, color_to_move);
-
-    for _mv in legal_moves.iter() {
-        let undo = board.make_move(_mv);
-        nodes += perft(board, depth-1);
-        board.unmake_move(_mv, undo);
+    let moves = generate_legal_moves(board, board.to_move());
+    
+    if depth == 1 {
+        return moves.len() as u64;
     }
-
+    
+    for mv in moves {
+        let undo = board.make_move(&mv);
+        nodes += perft(board, depth - 1);
+        board.unmake_move(&mv, undo);
+    }
+    
     nodes
 }
 
@@ -31,24 +34,24 @@ pub fn benchmark_perft(_board: &mut Board) {
     }
 }
 
-pub fn perft_divide(board: &mut Board, depth: u32) -> u64 {
-    if depth == 0 {
-        return 1
-    }
-
-    let color = board.to_move();
-    let moves = generate_legal_moves(board, color);
+pub fn perft_divide(board: &mut Board, depth: u32) -> (Vec<(String, u64)>, u64) {
+    let mut results = Vec::new();
     let mut total = 0;
-
-    for mv in &moves {
-        let undo = board.make_move(mv);
-        let subtree = perft(board, depth - 1);
-        board.unmake_move(mv, undo);
-
-        println!("{}: {}", mv.to_algebraic(), subtree);
-        total += subtree;
+    
+    let moves = generate_legal_moves(board, board.to_move());
+    
+    for mv in moves {
+        let undo = board.make_move(&mv);
+        let nodes = if depth == 1 {
+            1 
+        } else {
+            perft(board, depth - 1)
+        };
+        board.unmake_move(&mv, undo);
+        
+        results.push((mv.to_algebraic(), nodes));
+        total += nodes;
     }
-
-    print!("Total: {}", total);
-    total
+    
+    (results, total)
 }

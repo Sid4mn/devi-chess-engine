@@ -16,30 +16,101 @@ pub fn generate_pawn_moves(board: &Board, square: Square, color: Color) -> Vec<M
         Color::White => 8,
     };
 
+    let promotion_rank = match color {
+        Color::White => square_idx >= 48 && square_idx <= 55,
+        Color::Black => square_idx >= 8 && square_idx <= 15,
+    };
+
     let one_forward = square_idx + direction; 
     if one_forward >= 0 && one_forward < 64 {
         let target_square = Square(one_forward as u8);
         if board.is_empty(target_square) {
-            moves.push(Move {
-                from: square,
-                to: target_square,
-                special_move: None,
-                promotion: None,
-            });
+            if promotion_rank {
+                // Generate all 4 promotion moves
+                for piece_type in [PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight] {
+                    moves.push(Move {
+                        from: square,
+                        to: target_square,
+                        special_move: Some(SpecialMove::Promotion),
+                        promotion: Some(piece_type),
+                    });
+                }
+            } else {
+                moves.push(Move {
+                    from: square,
+                    to: target_square,
+                    special_move: None,
+                    promotion: None,
+                });
+            }
 
-            let starting_rank = match color {
-                Color::Black => square_idx >= 48 && square_idx <= 55,
-                Color::White => square_idx >= 8 && square_idx <= 15,
-            };
+            // Double push logic (only if not promotion rank)
+            if !promotion_rank {
+                let starting_rank = match color {
+                    Color::White => square_idx >= 8 && square_idx <= 15,
+                    Color::Black => square_idx >= 48 && square_idx <= 55,
+                };
 
-            if starting_rank == true {
-                let two_forward = one_forward + direction;
-                if two_forward >= 0 && two_forward < 64 {
-                    let target_square2 = Square(two_forward as u8);
-                    if board.is_empty(target_square2) {
+                if starting_rank {
+                    let two_forward = square_idx + (direction * 2);
+                    if two_forward >= 0 && two_forward < 64 {
+                        let double_target = Square(two_forward as u8);
+                        if board.is_empty(double_target) {
+                            moves.push(Move {
+                                from: square,
+                                to: double_target,
+                                special_move: None,
+                                promotion: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    generate_pawn_capture(board, square, color, &mut moves);
+
+    moves
+}
+
+pub fn generate_pawn_capture(board: &Board, square: Square, color: Color, moves: &mut Vec<Move>) { 
+    let square_idx = square.0 as i8;
+    
+    let promotion_rank = match color {
+        Color::White => square_idx >= 48 && square_idx <= 55, // 7th rank
+        Color::Black => square_idx >= 8 && square_idx <= 15,   // 2nd rank
+    };
+
+    let file = square_idx % 8;
+
+    // Define capture offsets based on color
+    let (west_offset, east_offset) = match color {
+        Color::White => (7, 9),   // White captures NW (+7) and NE (+9)
+        Color::Black => (-9, -7), // Black captures SW (-9) and SE (-7)
+    };
+
+    // West capture
+    if file > 0 {
+        let target_idx = square_idx + west_offset;
+        if target_idx >= 0 && target_idx < 64 {
+            let target_square = Square(target_idx as u8);
+            if let Some(piece) = board.get_piece(target_square) {
+                if piece.color != color {
+                    if promotion_rank {
+                        // Generate all 4 promotion captures
+                        for piece_type in [PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight] {
+                            moves.push(Move {
+                                from: square,
+                                to: target_square,
+                                special_move: Some(SpecialMove::Promotion),
+                                promotion: Some(piece_type),
+                            });
+                        }
+                    } else {
                         moves.push(Move {
                             from: square,
-                            to: target_square2,
+                            to: target_square,
                             special_move: None,
                             promotion: None,
                         });
@@ -48,73 +119,57 @@ pub fn generate_pawn_moves(board: &Board, square: Square, color: Color) -> Vec<M
             }
         }
     }
-    generate_pawn_capture(board, square, color, &mut moves);
 
-    moves
-}
-
-pub fn generate_pawn_capture(board: &Board, square: Square, color: Color, moves: &mut Vec<Move>) { 
-    let square_idx = square.0 as i8;
-    let direction_mul = match color {
-        Color::Black => -1,
-        Color::White => 1,
-    };
-
-    let file = (square.0 as i8) % 8;
-
-    if file > 0 { // exclude A file, handle west capture
-
-        let target_idx = square_idx + (7 * direction_mul);
+    // East capture
+    if file < 7 {
+        let target_idx = square_idx + east_offset;
         if target_idx >= 0 && target_idx < 64 {
-            if let Some(piece) = board.get_piece(Square(target_idx as u8)) {
-                let target_square = Square(target_idx as u8);
-                if piece.color != color { // check opposite color
-                    moves.push(Move {
-                        from: square,
-                        to: target_square,
-                        special_move: None,
-                        promotion: None,
-                    });
-                }
-            }
-        }
-    }
-
-    if file < 7 { // exclude H file, handle east capture
-        
-        let target_idx = square_idx + (9 * direction_mul);
-        if target_idx >= 0 && target_idx < 64 {
-            if let Some(piece) = board.get_piece(Square(target_idx as u8)) {
-                let target_square = Square(target_idx as u8);
+            let target_square = Square(target_idx as u8);
+            if let Some(piece) = board.get_piece(target_square) {
                 if piece.color != color {
-                    moves.push(Move {
-                        from: square,
-                        to: target_square,
-                        special_move: None,
-                        promotion: None,
-                    });
+                    if promotion_rank {
+                        // Generate all 4 promotion captures
+                        for piece_type in [PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight] {
+                            moves.push(Move {
+                                from: square,
+                                to: target_square,
+                                special_move: Some(SpecialMove::Promotion),
+                                promotion: Some(piece_type),
+                            });
+                        }
+                    } else {
+                        moves.push(Move {
+                            from: square,
+                            to: target_square,
+                            special_move: None,
+                            promotion: None,
+                        });
+                    }
                 }
             }
         }
     }
 
+    // En passant capture
     if let Some(en_passant_square) = board.en_passant() {
-        let square_idx = square.0 as i8;
-        let en_passant_idx: i8 = en_passant_square.0 as i8;
-        let file = square_idx % 8;
+        let en_passant_idx = en_passant_square.0 as i8;
+        let ep_file = en_passant_idx % 8;
+        let rank = square_idx / 8;
         
-        let left_capture = square_idx + (7 * direction_mul);
-        let right_capture = square_idx + (9 * direction_mul);
-
-        if (left_capture == en_passant_idx && file > 0) || (right_capture == en_passant_idx && file < 7) {
+        // Check if pawn is on correct rank for en passant
+        let can_capture_ep = match color {
+            Color::White => rank == 4,  // White pawns on 5th rank
+            Color::Black => rank == 3,  // Black pawns on 4th rank
+        };
+        
+        if can_capture_ep && (ep_file - file).abs() == 1 {
             moves.push(Move {
-                from : square,
-                to : en_passant_square,
+                from: square,
+                to: en_passant_square,
                 special_move: Some(SpecialMove::EnPassant),
                 promotion: None,
             });
         }
-
     }
 }
 

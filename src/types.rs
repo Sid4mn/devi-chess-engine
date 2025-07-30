@@ -98,27 +98,27 @@ impl Move {
     }
 
     pub fn to_algebraic(&self) -> String {
-        match self.special_move {
-            Some(SpecialMove::Castle) => {
-                if self.to.0 > self.from.0 {"O-O".into()} else {"O-O-O".into()}
-            }
-            _ => {
-                let mut s = String::with_capacity(5);
-                s.push_str(&self.from.to_alg());
-                s.push_str(&self.to.to_alg());
-                if let Some(p) = self.promotion {
-                    s.push(match p {
-                        PieceType::Queen => 'q',
-                        PieceType::Rook => 'r',
-                        PieceType::Bishop => 'b',
-                        PieceType::Knight => 'n',
-                        _ => unreachable!("only piece promotions allowed"),
-                    });
-                }
-                s
-            }
+        let from_file = (self.from.0 % 8) as u8 + b'a';
+        let from_rank = (self.from.0 / 8) as u8 + b'1';
+        let to_file = (self.to.0 % 8) as u8 + b'a';
+        let to_rank = (self.to.0 / 8) as u8 + b'1';
+        
+        let mut result = format!("{}{}{}{}", 
+            from_file as char, from_rank as char,
+            to_file as char, to_rank as char
+        );
+        
+        if let Some(promotion) = self.promotion {
+            result.push(match promotion {
+                PieceType::Queen => 'q',
+                PieceType::Rook => 'r',
+                PieceType::Bishop => 'b',
+                PieceType::Knight => 'n',
+                _ => '?',
+            });
         }
-
-    }   
+        
+        result
+    }
 }
 

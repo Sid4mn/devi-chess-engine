@@ -13,6 +13,5 @@ pub fn generate_legal_moves(board: &mut Board, color: Color) -> Vec<Move> {
         }
         board.unmake_move(&_move, undo_info);
     }
-
     legal_moves
 }
