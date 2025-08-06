@@ -21,7 +21,6 @@ fn main() {
 
     // println!("P divide (3): {}", perft_divide(&mut board, 3).1);
     // println!("P divide (4): {}", perft_divide(&mut board, 4).1);
-
     println!("Starting position evaluation: {}", evaluate(&board));
     
     // Search test
@@ -49,9 +48,7 @@ fn benchmark_search() {
         let start_time = Instant::now();
         let (best_move, score) = search(&mut board, depth);
         let duration = start_time.elapsed();
-
         total_time += duration.as_millis();
-
         println!("Run {}: {:?} - Move: {} -> {}", run, duration, best_move.from.0, best_move.to.0.to_ascii_lowercase());
     }
 
