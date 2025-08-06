@@ -1,6 +1,4 @@
 use std::time::Instant;
-use devi::moves::perft::{perft_divide};
-use devi::moves::{perft};
 use devi::board::{Board, BoardRepresentation};
 use devi::evaluation::evaluate;
 use devi::search::search;
@@ -46,7 +44,7 @@ fn benchmark_search() {
     for run in 1..=runs {
         board.setup_starting_position();
         let start_time = Instant::now();
-        let (best_move, score) = search(&mut board, depth);
+        let (best_move, _score) = search(&mut board, depth);
         let duration = start_time.elapsed();
         total_time += duration.as_millis();
         println!("Run {}: {:?} - Move: {} -> {}", run, duration, best_move.from.0, best_move.to.0.to_ascii_lowercase());
