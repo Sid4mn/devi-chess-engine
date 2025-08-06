@@ -23,10 +23,10 @@ pub fn perft(board: &mut Board, depth: u32) -> u64 {
     nodes
 }
 
-pub fn benchmark_perft(_board: &mut Board) {
+pub fn benchmark_perft(board: &mut Board) {
     for depth in 1..=3 {
         let start = Instant::now();
-        let nodes = perft(_board, depth);
+        let nodes = perft(board, depth);
         let elapsed = start.elapsed();
 
         let nodes_per_sec: u128 = (nodes as u128 * 1000 )/ elapsed.as_millis() as u128;

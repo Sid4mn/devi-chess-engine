@@ -1,0 +1,43 @@
+name: CI
+#Trigger: Run on pushes to main/master and on pull requests.
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  CARGO_TERM_COLOR: always #Enable colored output in logs
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    #Install latest stable Rust toolchain
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    #Cache dependencies to speed up builds  
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        
+    #Run critical regression tests first (fail fast)
+    - name: Run CI Gate Tests
+      run: cargo test --test ci_gate --verbose
+    
+    #Run all other tests
+    - name: Run All Tests
+      run: cargo test --verbose
+    
+    #Verify release build works (catches optimization issues)
+    - name: Build Release
+      run: cargo build --release --verbose
