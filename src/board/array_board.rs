@@ -2,6 +2,7 @@ use crate::{types::*};
 use super::traits::{BoardRepresentation, UndoMove};
 use crate::types::{WK, WQ, BK, BQ};
 
+#[derive(Debug, Clone)] 
 pub struct ArrayBoard {
     squares: [Option<Piece>; 64],
     to_move: Color,

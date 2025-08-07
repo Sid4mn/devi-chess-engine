@@ -1,7 +1,7 @@
 use std::time::Instant;
 use devi::board::{Board, BoardRepresentation};
 use devi::evaluation::evaluate;
-use devi::search::search;
+use devi::search::{parallel_search, search};
 
 fn main() {
     println!("devi Chess Engine v0.1.0");
@@ -27,6 +27,7 @@ fn main() {
     println!("Best move: {} -> {}", best_move.from.0, best_move.to.0);
 
     benchmark_search();
+    benchmark_parallel();
 
 }
 
@@ -58,4 +59,48 @@ fn benchmark_search() {
     println!("\n Average time: {}", avg_time_ms);
     println!("\n Searches/second: {:.2}", searches_per_sec);
 
+}
+
+fn benchmark_parallel() {
+    println!("\n === PARALLEL BENCHMARK ===");
+    let mut board = Board::new();
+    board.setup_starting_position();
+
+    let baseline_sps = 166.67;
+
+    for thread_count in [1,2,4,8] {
+       println!("\n--- Testing {} threads ---", thread_count);
+
+        let mut total_time = 0u128;
+        let runs = 3;
+        
+        for run in 1..=runs {
+            board.setup_starting_position();
+            let start = Instant::now();
+
+            if thread_count == 1 {
+                let (_best_move, _score) = search(&mut board, 4);
+            } else {
+                let pool = rayon::ThreadPoolBuilder::new()
+                    .num_threads(thread_count)
+                    .build()
+                    .unwrap();
+                
+                let (_best_move, _score) = pool.install(|| {
+                    parallel_search(&mut board, 4)
+                });
+            }
+
+            let duration = start.elapsed();
+            total_time += duration.as_millis();
+            println!("Run {}: {:?}", run, duration);
+       }
+        let avg_time_ms = total_time / runs as u128;
+        let searches_per_sec = if avg_time_ms > 0 { 1000.0 / avg_time_ms as f64 } else { 0.0 };
+        let speedup = searches_per_sec / baseline_sps;
+
+        println!("Threads: {}, Average: {}ms, SPS: {:.2}, Speedup: {:.2}x", 
+                thread_count, avg_time_ms, searches_per_sec, speedup);
+    }
+    println!("\n--- PARALLEL BENCHMARK COMPLETE ---");
 }

@@ -9,7 +9,7 @@ keywords = ["chess", "engine", "parallel", "search"]
 rand = "0.8"
 once_cell = "1.19"
 clap = { version = "4.0", features = ["derive"]}
-# rayon = "1.8" 
+rayon = "1.10.0" 
 # clap = "4.0"
 
 [profile.dev]
