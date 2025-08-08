@@ -8,8 +8,15 @@ This project explores chess engine algorithms through the lens of high-performan
 
 ## Performance Status
 ![Build Status](https://github.com/Sid4mn/devi-chess-engine/workflows/CI/badge.svg)
-![Performance](https://img.shields.io/badge/Performance-166.67%20searches%2Fsec-blue)
-**Baseline**: 166.67 searches/second (single-thread, depth 4, material evaluation)
+
+### Parallel Performance Results
+![Speedup Graph](benchmarks/speedup_hires.png)
+
+**Parallel Scaling Achievement:**
+- **2 threads**: 1.67x speedup (83.7% efficiency) - Excellent linear scaling
+- **8 threads**: 3.71x speedup (46.4% efficiency) - Strong performance on M1 Pro
+- **Architecture insights**: M1 Pro performance/efficiency core scheduling challenges at 4 threads
+
 
 ## Inspiration & Learning Resources
 - **Book**: Chess Algo - Noah Caplinger - modern algorithmic approach to chess programming and search optimization
@@ -43,7 +50,7 @@ This project explores chess engine algorithms through the lens of high-performan
 - [x] **Alpha-beta search implementation**
 - [x] **Material evaluation function**
 - [x] **CI/CD pipeline with regression tests**
-- [x] **Performance baseline: 166.67 searches/second**
+- [x] **Performance baseline: 153.48 searches/second**
 - [x] **Flamegraph profiling**
 
 ## Perft Verification
@@ -57,16 +64,12 @@ This project explores chess engine algorithms through the lens of high-performan
 | 5     | 4,865,609   | ✅     |
 | 6     | 119,060,324 | ✅     |
 
-**Week 2**: **IN PROGRESS** - Parallel Scalability
+**Week 2**: **COMPLETED** - Parallel Scalability
 - [x] Lazy-SMP root parallelization with Rayon
 - [x] Multi-thread benchmarking (1/2/4/8 threads)
-- [x] **6x speedup achieved** on M1 Pro (540 searches/sec on 4 threads)
+- [x] Statistical analysis with warmup/outlier detection
 - [x] Thread safety validation
-
-### Performance Results
-- **Single-thread**: 166.67 searches/second
-- **Multi-thread (4 cores)**: 540.54 searches/second (**3.24x speedup**)
-- **Multi-thread (8 cores)**: 763.36 searches/second (**4.58x speedup**)
+- [x] Performance visualization and CSV export
 
 **Week 3**: v2 Move Ordering & Optimization
 - [ ] MVV-LVA capture ordering
@@ -84,7 +87,7 @@ This project explores chess engine algorithms through the lens of high-performan
 - [ ] Memory optimization
 
 ### Performance Metrics
-- **Search Speed**: 166.67 searches/second
+- **Search Speed**: 153.48 searches/second (single-thread baseline)
 - **Search Depth**: 4 plies
 - **Evaluation**: Material-only
 - **Move Generation**: ~20 legal moves from starting position
