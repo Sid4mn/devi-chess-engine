@@ -3,7 +3,7 @@ import os
 
 def perf_vis():
     threads = [1, 2, 4, 8]
-    actual_speedup = [1.00, 1.67, 1.68, 3.71]
+    actual_speedup = [1.00, 1.81, 3.30, 4.69]
     linear_theoretical = [1, 2, 4, 8]
 
     plt.figure(figsize=(10, 6))
@@ -24,17 +24,17 @@ def perf_vis():
     plt.xlim(0.5, 8.5)
     plt.ylim(0, 9)
     
-    plt.annotate('Strong scaling!\n3.71x on 8 threads', 
-                xy=(8, 3.71), xytext=(6.5, 5.5),
+    plt.annotate('Strong scaling!\n4.69x on 8 threads', 
+                xy=(8, 4.69), xytext=(6.5, 5.5),
                 arrowprops=dict(arrowstyle='->', color='green'),
                 fontsize=10, fontweight='bold',
                 bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgreen", alpha=0.7))
     
-    plt.annotate('M1 Pro plateau\n(core scheduling)', 
-                xy=(4, 1.68), xytext=(2.5, 3),
-                arrowprops=dict(arrowstyle='->', color='orange'),
+    plt.annotate('Good scaling\n82.6% efficiency', 
+                xy=(4, 3.30), xytext=(2.5, 3.8),
+                arrowprops=dict(arrowstyle='->', color='blue'),
                 fontsize=9, style='italic',
-                bbox=dict(boxstyle="round,pad=0.2", facecolor="lightyellow", alpha=0.6))
+                bbox=dict(boxstyle="round,pad=0.2", facecolor="lightblue", alpha=0.6))
     
     os.makedirs('../benchmarks', exist_ok=True)
     plt.savefig('../benchmarks/speedup.png', dpi=150, bbox_inches='tight')
@@ -48,10 +48,10 @@ def perf_vis():
         status = "Excellent" if efficiency > 80 else "Good" if efficiency > 50 else "Fair"
         print(f"{t} threads: {s:.2f}x speedup, {efficiency:.1f}% efficiency ({status})")
     
-    print(f"\nPeak speedup: {max(actual_speedup):.2f}x on {threads[actual_speedup.index(max(actual_speedup))]} threads")
-    print("Best efficiency: 2 threads (83.7% - near-linear scaling)")
-    print("Architecture insight: M1 Pro shows 4-thread scheduling challenges")
-    print("Strong 8-thread performance: 3.71x speedup demonstrates effective parallelization")
+        print(f"\nPeak speedup: {max(actual_speedup):.2f}x on {threads[actual_speedup.index(max(actual_speedup))]} threads")
+    print(f"Best efficiency: 2 threads ({(actual_speedup[1]/2)*100:.1f}% - near-linear scaling)")
+    print(f"4-thread performance: {actual_speedup[2]:.2f}x speedup ({(actual_speedup[2]/4)*100:.1f}% efficiency)")
+    print(f"Strong 8-thread performance: {actual_speedup[3]:.2f}x speedup demonstrates effective parallelization")
     
     plt.show()
 

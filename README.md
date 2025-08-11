@@ -29,7 +29,7 @@ cargo run --release -- --benchmark
 
 ### Performance Characteristics
 - **Single-thread baseline**: 159.99 searches/second
-- **Parallel scaling**: 4.92x speedup on 8 threads (Apple M1 Pro)
+- **Parallel scaling**: 4.69x speedup on 8 threads (Apple M1 Pro)
 - **Operational range**: Depth 4-6 for optimal performance
 - **Validation**: Soak testing shows consistent stability
 
@@ -119,7 +119,7 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 - [x] Soak testing for stability validation (--soak flag)
 - [x] Statistical analysis with warmup/outlier detection
 - [x] Performance visualization and CSV export
-- [x] **4.92x speedup achievement on 8 threads**
+- [x] **4.69x speedup achievement on 8 threads**
 
 **Week 3**: v2 Move Ordering & Optimization
 - [ ] MVV-LVA capture ordering
@@ -140,7 +140,7 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 
 ### Current Achievements
 - **Search Speed**: 159.99 searches/second (single-thread baseline)
-- **Parallel Scaling**: 4.92x speedup on 8 threads (Apple M1 Pro)
+- **Parallel Scaling**: 4.69x speedup on 8 threads (Apple M1 Pro)
 - **Search Depth**: 4-6 plies optimal operational range
 - **Evaluation**: Material-only with clean extensibility
 - **Hardware**: Apple M1 Pro (8-core, performance/efficiency hybrid)
