@@ -43,7 +43,43 @@ cargo run --release -- --threads 8 --depth 6
 
 # Stability testing  
 cargo run --release -- --soak --threads 8 --depth 6 --runs 100
+
+# Perft testing (move generation validation)
+cargo run --release -- --perft --depth 6
+
+# Parallel perft testing
+cargo run --release -- --perft --parallel-perft --threads 8 --depth 6
+
+# Perft divide (debug individual moves)
+cargo run --release -- --perft --perft-divide --depth 5
 ```
+
+### Advanced Options
+```bash
+# Benchmark with custom parameters
+cargo run --release -- --benchmark --warmup 10 --runs 20 --depth 5
+
+# Soak test with detailed statistics
+cargo run --release -- --soak --threads 4 --depth 4 --runs 50
+
+# Serial vs Parallel perft comparison
+cargo run --release -- --perft --threads 1 --depth 7 # Serial
+cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
+```
+
+### Flag Reference
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--threads` | Number of threads to use | 1 |
+| `--depth` | Search depth | 4 |
+| `--warmup` | Warmup iterations for benchmarks | 5 |
+| `--runs` | Number of measurement runs | 10 |
+| `--benchmark` | Run full benchmark suite | - |
+| `--soak` | Run stability soak test | - |
+| `--perft` | Run perft move generation test | - |
+| `--parallel-perft` | Use parallel perft computation | false |
+| `--perft-divide` | Show perft results per root move | - |
+
 ## Weekly Deliverables
 
 **Week 1**: **COMPLETED** - Foundation & Correctness

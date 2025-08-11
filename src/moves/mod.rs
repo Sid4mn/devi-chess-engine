@@ -6,5 +6,5 @@ pub mod perft;
 pub use legal_moves::generate_legal_moves;
 pub use piece_moves::*;
 pub use movegen::*;
-pub use perft::perft;
+pub use perft::{perft,perft_parallel, perft_divide};
 

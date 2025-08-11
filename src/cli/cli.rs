@@ -20,13 +20,20 @@ pub struct Cli {
     
     #[arg(long)]
     pub soak: bool,
+
+    #[arg(long)]
+    pub perft: bool,
+
+    #[arg(long, help = "Use parallel perf computation", default_value_t = false)]
+    pub parallel_perft: bool,
+
+    #[arg(long)]
+    pub perft_divide: bool,
 }
 
 pub fn parse_args() -> Cli {
     Cli::parse()
 }
-
-
 
 #[cfg(test)]
 mod tests {

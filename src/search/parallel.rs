@@ -4,14 +4,22 @@ use crate::search::minimax::alphabeta;
 use crate::types::*;
 use rayon::prelude::*;
 
+use crate::search::minimax::MATE_SCORE;
+
+
 pub fn parallel_search(board: &mut Board, depth: u32) -> (Move, i32) {
     let current_color = board.to_move();
     let moves = generate_legal_moves(board, current_color);
 
-    assert!(
-        !moves.is_empty(),
-        "No legal moves available in position {:?}",board
-    );
+    if moves.is_empty() {
+        let dummy_move = Move::new(Square(0), Square(0), None, None);
+        let score = if board.is_in_check(current_color) {
+            -MATE_SCORE  // We're checkmated
+        } else {
+            0  // Stalemate
+        };
+        return (dummy_move, score);
+    }
 
     moves.par_iter()
         .map(|mv|{

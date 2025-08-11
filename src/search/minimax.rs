@@ -3,6 +3,9 @@ use crate::moves::generate_legal_moves;
 use crate::types::*;
 use crate::evaluation::evaluate;
 
+pub const INFINITY: i32 = 1_000_000;
+pub const MATE_SCORE: i32 = 100_000;
+
 pub fn minimax(board: &mut Board, depth: u32, maximizing_player: bool) -> i32 {
     if depth == 0 {
         return evaluate(board);
@@ -10,6 +13,16 @@ pub fn minimax(board: &mut Board, depth: u32, maximizing_player: bool) -> i32 {
 
     let current_color = board.to_move();
     let moves = generate_legal_moves(board, current_color);
+
+    if moves.is_empty() {
+        if board.is_in_check(current_color) {
+            //Checkmate - return negative score for losing side
+            return if maximizing_player { -MATE_SCORE } else { MATE_SCORE };
+        } else {
+            //Stalemate - draw
+            return 0;
+        }
+    }
 
     if maximizing_player {
         let mut max_eval = i32::MIN;
@@ -41,7 +54,13 @@ pub fn alphabeta(board: &mut Board, depth: u32, mut alpha: i32, mut beta: i32, m
     let moves = generate_legal_moves(board, current_color);
 
     if moves.is_empty() {
-        panic!("No legal moves available!");
+        if board.is_in_check(current_color) {
+            //Checkmate - return negative score for losing side
+            return if maximizing_player { -MATE_SCORE } else { MATE_SCORE };
+        } else {
+            //Stalemate - draw
+            return 0;
+        }
     }
 
     if maximizing_player {
@@ -74,7 +93,13 @@ pub fn search(board: &mut Board, depth: u32) -> (Move, i32) {
     let moves = generate_legal_moves(board, current_color);
 
     if moves.is_empty() {
-        panic!("No legal moves available");
+        let dummy_move = Move::new(Square(0), Square(0), None, None);
+        let score = if board.is_in_check(current_color) {
+            -MATE_SCORE  //We're checkmated
+        } else {
+            0  //Stalemate
+        };
+        return (dummy_move, score);
     }
 
     let mut best_move = moves[0];
