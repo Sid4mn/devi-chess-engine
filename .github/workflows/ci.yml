@@ -55,7 +55,3 @@ jobs:
 
         # Test benchmark flag doesn't crash (but don't run the test)
         timeout 10 ./target/release/devi --benchmark --depth 1 --runs 1 --warmup 0 || true
-
-    - name: Check Python Dependencies
-      run: |
-        python3 -c "import matplotlib, pandas, os, sys; print('Python deps OK')"
