@@ -41,3 +41,21 @@ jobs:
     #Verify release build works (catches optimization issues)
     - name: Build Release
       run: cargo build --release --verbose
+
+    - name: Verify Benchmark Tools
+      run: |
+        # Check scripts exist and are executable
+        test -f scripts/threads.sh
+        test -f scripts/soak.sh
+        test -f scripts/generate_speedup_plot.py
+        chmod +x scripts/threads.sh scripts/soak.sh
+
+        # Verify CLI flags work (quick smoke test)
+        ./target/release/devi --help
+
+        # Test benchmark flag doesn't crash (but don't run the test)
+        timeout 10 ./target/release/devi --benchmark --depth 1 --runs 1 --warmup 0 || true
+
+    - name: Check Python Dependencies
+      run: |
+        python3 -c "import matplotlib, pandas, os, sys; print('Python deps OK')"

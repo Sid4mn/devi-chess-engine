@@ -24,14 +24,15 @@ This project explores chess engine algorithms through the lens of high-performan
 cargo run --release -- --benchmark
 
 # Or use the convenience script
-./scripts/reproduce_results.sh
+./scripts/threads.sh
 ```
 
 ### Performance Characteristics
-- **Single-thread baseline**: 159.99 searches/second
-- **Parallel scaling**: 4.69x speedup on 8 threads (Apple M1 Pro)
+- **Single-thread baseline**: 165.91 searches/second
+- **Parallel scaling**: 4.58x speedup on 8 threads (Apple M1 Pro)
+- **Efficiency**: 79.9% at 4 threads, 57.2% at 8 threads
 - **Operational range**: Depth 4-6 for optimal performance
-- **Validation**: Soak testing shows consistent stability
+- **Validation**: Soak testing shows consistent stability (median 1.576ms)
 
 ### CLI Usage
 ```bash
@@ -97,7 +98,7 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 - [x] **Alpha-beta search implementation**
 - [x] **Material evaluation function**
 - [x] **CI/CD pipeline with regression tests**
-- [x] **Performance baseline: 153.48 searches/second**
+- [x] **Performance baseline: 165.91 searches/second**
 - [x] **Flamegraph profiling**
 
 ## Perft Verification
@@ -119,7 +120,8 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 - [x] Soak testing for stability validation (--soak flag)
 - [x] Statistical analysis with warmup/outlier detection
 - [x] Performance visualization and CSV export
-- [x] **4.69x speedup achievement on 8 threads**
+- [x] **Automated reproduction scripts (threads.sh, soak.sh)**
+- [x] **4.58x speedup achievement on 8 threads**
 
 **Week 3**: v2 Move Ordering & Optimization
 - [ ] MVV-LVA capture ordering
@@ -139,18 +141,17 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 ### Performance Metrics
 
 ### Current Achievements
-- **Search Speed**: 159.99 searches/second (single-thread baseline)
-- **Parallel Scaling**: 4.69x speedup on 8 threads (Apple M1 Pro)
+- **Search Speed**: 165.91 searches/second (single-thread baseline)
+- **Parallel Scaling**: 4.58x speedup on 8 threads (Apple M1 Pro)
 - **Search Depth**: 4-6 plies optimal operational range
 - **Evaluation**: Material-only with clean extensibility
 - **Hardware**: Apple M1 Pro (8-core, performance/efficiency hybrid)
 
 ### Statistical Validation
 - **Benchmark methodology**: 5 warmup + 10 measurement runs
-- **Soak testing**: 25+ iteration stability validation
+- **Soak testing**: 100 iteration stability validation (median 1.576ms)
 - **Statistical metrics**: Min/median/p95/max timing analysis
 - **Thread safety**: Zero data races in parallel execution
-
 
 ## Current Status
 **Week 2 - Complete**

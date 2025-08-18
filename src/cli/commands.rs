@@ -1,4 +1,6 @@
 use std::time::Instant;
+use std::fs::{create_dir_all, File};
+use std::io::{Write, BufWriter};
 use crate::board::{Board, BoardRepresentation};
 use crate::cli::Cli;
 use crate::evaluation::evaluate;
@@ -70,10 +72,11 @@ pub fn run_soak_test(args: &Cli) {
         let duration_ms = start.elapsed().as_micros() as f64 / 1000.0;
         samples_ms.push(duration_ms);
         println!("Run {:3}: {:.3}ms", i, duration_ms);
-        }
-        //calculating stats.
-        samples_ms.sort_by(|a,b| a.partial_cmp(b).unwrap());
-        if samples_ms.len() > 0 {
+    }
+    //calculating stats.
+    samples_ms.sort_by(|a,b| a.partial_cmp(b).unwrap());
+
+    if samples_ms.len() > 0 {
         let len = samples_ms.len();
         let min = samples_ms[0];
         let max = samples_ms[len - 1];
@@ -86,9 +89,65 @@ pub fn run_soak_test(args: &Cli) {
         let p95_idx = ((len as f64 * 0.95) as usize).min(len - 1);
         let p95 = samples_ms[p95_idx];
         println!("Summary: min {:.3}ms, median {:.3}ms, p95 {:.3}ms, max {:.3}ms",min, median, p95, max);
-        } else {
-            println!("No samples collected!");
-        }
+
+        write_soak_files(&samples_ms, args.threads, args.depth, args.runs, min, median, p95, max);
+    } else {
+        println!("No samples collected!");
+    }
+}
+
+fn write_soak_files(samples: &[f64], threads: usize, depth: u32, runs: usize, min: f64, median: f64, p95: f64, max: f64) {
+    // Ensure docs directory exists
+    if let Err(e) = create_dir_all("docs") {
+        eprintln!("Warning: Failed to create docs directory: {}", e);
+        return;
+    }
+    
+    // Write raw samples
+    if let Err(e) = write_raw_samples(samples) {
+        eprintln!("Warning: Failed to write raw samples: {}", e);
+    }
+    
+    // Write summary
+    if let Err(e) = write_soak_summary(threads, depth, runs, min, median, p95, max) {
+        eprintln!("Warning: Failed to write summary: {}", e);
+    }
+    
+    println!("\nSoak test results written to docs/soak_raw.txt and docs/soak_summary.txt");
+}
+
+fn write_raw_samples(samples: &[f64]) -> std::io::Result<()> {
+    let file = File::create("docs/soak_raw.txt")?;
+    let mut writer = BufWriter::new(file);
+    
+    for sample in samples {
+        writeln!(writer, "{:.3}", sample)?;
+    }
+    
+    writer.flush()?;
+    Ok(())
+}
+
+fn write_soak_summary(threads: usize, depth: u32, runs: usize, min: f64, median: f64, p95: f64, max: f64) -> std::io::Result<()> {
+    let file = File::create("docs/soak_summary.txt")?;
+    let mut writer = BufWriter::new(file);
+    
+    writeln!(writer, "Devi Chess Engine - Soak Test Results")?;
+    writeln!(writer, "=====================================")?;
+    writeln!(writer)?;
+    writeln!(writer, "Configuration:")?;
+    writeln!(writer, "  Threads: {}", threads)?;
+    writeln!(writer, "  Depth: {}", depth)?;
+    writeln!(writer, "  Iterations: {}", runs)?;
+    writeln!(writer)?;
+    writeln!(writer, "Performance Statistics (milliseconds):")?;
+    writeln!(writer, "  Minimum:  {:.3}ms", min)?;
+    writeln!(writer, "  Median:   {:.3}ms", median)?;
+    writeln!(writer, "  95th %:   {:.3}ms", p95)?;
+    writeln!(writer, "  Maximum:  {:.3}ms", max)?;
+    
+    writer.flush()?;
+    Ok(())
 }
 
 pub fn run_perft_test(args: &Cli) {
@@ -126,7 +185,7 @@ pub fn run_perft_test(args: &Cli) {
 
 pub fn run_perft_depths(args: &Cli, board: &mut Board, parallel: bool) {
     
-    println!("\nDepth | Nodes        | Time     | Nodes/sec");
+    println!("\nDepth | Nodes        | Time     | Searches/sec");
     println!("------|--------------|----------|----------");
     
     for depth in 1..=args.depth {
