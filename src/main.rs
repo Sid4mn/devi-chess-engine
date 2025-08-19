@@ -1,7 +1,7 @@
 use devi::cli;
 
 fn main() {
-    println!("devi Chess Engine v0.2.0");
+    println!("devi Chess Engine v{}", env!("CARGO_PKG_VERSION"));
     println!("------------------------");
 
     let args = cli::parse_args();

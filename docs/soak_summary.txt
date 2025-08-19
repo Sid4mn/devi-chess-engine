@@ -7,7 +7,7 @@ Configuration:
   Iterations: 100
 
 Performance Statistics (milliseconds):
-  Minimum:  1.329ms
-  Median:   1.576ms
-  95th %:   2.530ms
-  Maximum:  11.324ms
+  Minimum:  1.153ms
+  Median:   1.414ms
+  95th %:   2.270ms
+  Maximum:  11.362ms

@@ -1,7 +1,6 @@
 # devi Chess Engine
 
-A chess engine written in Rust to understand chess engine algorithms, their history, and explore intuitive Rust implementations. 
-This project explores chess engine algorithms through the lens of high-performance computing, demonstrating system-level optimizations and clean Rust development.
+Building a chess engine from scratch to understand parallel search algorithms and push Rust's performance boundaries.
 
 ## Inspiration & Learning Resources
 - **Book**: Chess Algo - Noah Caplinger - modern algorithmic approach to chess programming and search optimization
@@ -10,7 +9,7 @@ This project explores chess engine algorithms through the lens of high-performan
 - Research papers on Lazy SMP, Jamboree search, and transposition-table design
 
 ## Project Philosophy
-**Hypothesis → Experiment → Measure → Analyze → Document**
+**Approach:** Build it, measure it, understand the bottlenecks.
 
 ## Performance Status
 ![Build Status](https://github.com/Sid4mn/devi-chess-engine/workflows/CI/badge.svg)
@@ -27,12 +26,14 @@ cargo run --release -- --benchmark
 ./scripts/threads.sh
 ```
 
-### Performance Characteristics
-- **Single-thread baseline**: 165.91 searches/second
-- **Parallel scaling**: 4.58x speedup on 8 threads (Apple M1 Pro)
-- **Efficiency**: 79.9% at 4 threads, 57.2% at 8 threads
-- **Operational range**: Depth 4-6 for optimal performance
-- **Validation**: Soak testing shows consistent stability (median 1.576ms)
+### Performance Results
+- **Baseline**: 165.65 searches/second (single thread)
+- **Peak**: 4.77× speedup on 8 threads (Apple M1 Pro, 59.6% efficiency)
+- **Sweet spot**: 3.17× speedup on 4 threads (79.2% efficiency)
+- **Stability**: Median 1.414ms over 100 iterations (soak test validation)
+- **Methodology**: 5 warmup + 10 measurement runs, median timing with outlier detection
+
+**Hardware**: Apple M1 Pro (6 performance + 2 efficiency cores), lock-free parallel search via Rayon
 
 ### CLI Usage
 ```bash
@@ -94,23 +95,24 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
   - [x] Queens (rook + bishop combined)
 - [x] Trait-based architecture
 - [x] Legal move filtering with check detection
-- [x] Perft validation suite (perfect through depth 6)
+- [x] Perft validation suite (perfect through depth 7)
 - [x] **Alpha-beta search implementation**
 - [x] **Material evaluation function**
 - [x] **CI/CD pipeline with regression tests**
-- [x] **Performance baseline: 165.91 searches/second**
 - [x] **Flamegraph profiling**
 
 ## Perft Verification
 
-| Depth | Nodes       | Status |
-|-------|-------------|--------|
-| 1     | 20          | ✅     |
-| 2     | 400         | ✅     |
-| 3     | 8,902       | ✅     |
-| 4     | 197,281     | ✅     |
-| 5     | 4,865,609   | ✅     |
-| 6     | 119,060,324 | ✅     |
+| Depth | Nodes         | Status |
+|-------|-------------  |------- |
+| 1     | 20            |   ✅   |
+| 2     | 400           |   ✅   |
+| 3     | 8,902         |   ✅   |
+| 4     | 197,281       |   ✅   |
+| 5     | 4,865,609     |   ✅   |
+| 6     | 119,060,324   |   ✅   |
+| 7     | 3,195,901,860 |   ✅   |
+
 
 **Week 2**: **COMPLETED** - Parallel Scalability
 - [x] Lazy-SMP root parallelization with Rayon
@@ -121,7 +123,7 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 - [x] Statistical analysis with warmup/outlier detection
 - [x] Performance visualization and CSV export
 - [x] **Automated reproduction scripts (threads.sh, soak.sh)**
-- [x] **4.58x speedup achievement on 8 threads**
+- [x] **Speedup achievement on 8 threads**
 
 **Week 3**: v2 Move Ordering & Optimization
 - [ ] MVV-LVA capture ordering
@@ -137,21 +139,6 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 - [ ] Transposition table experiments
 - [ ] Cache miss analysis with perf
 - [ ] Memory optimization
-
-### Performance Metrics
-
-### Current Achievements
-- **Search Speed**: 165.91 searches/second (single-thread baseline)
-- **Parallel Scaling**: 4.58x speedup on 8 threads (Apple M1 Pro)
-- **Search Depth**: 4-6 plies optimal operational range
-- **Evaluation**: Material-only with clean extensibility
-- **Hardware**: Apple M1 Pro (8-core, performance/efficiency hybrid)
-
-### Statistical Validation
-- **Benchmark methodology**: 5 warmup + 10 measurement runs
-- **Soak testing**: 100 iteration stability validation (median 1.576ms)
-- **Statistical metrics**: Min/median/p95/max timing analysis
-- **Thread safety**: Zero data races in parallel execution
 
 ## Current Status
 **Week 2 - Complete**

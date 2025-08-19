@@ -185,7 +185,7 @@ pub fn run_perft_test(args: &Cli) {
 
 pub fn run_perft_depths(args: &Cli, board: &mut Board, parallel: bool) {
     
-    println!("\nDepth | Nodes        | Time     | Searches/sec");
+    println!("\nDepth | Nodes        | Time     | Nodes/sec");
     println!("------|--------------|----------|----------");
     
     for depth in 1..=args.depth {
