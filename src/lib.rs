@@ -1,8 +1,8 @@
+pub mod benchmark;
+pub mod board;
+pub mod cli;
+pub mod evaluation;
+pub mod moves;
+pub mod search;
 pub mod types;
 pub mod utils;
-pub mod board;
-pub mod moves;
-pub mod evaluation;
-pub mod search;
-pub mod benchmark;
-pub mod cli;

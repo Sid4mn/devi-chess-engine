@@ -6,7 +6,6 @@ use rayon::prelude::*;
 
 use crate::search::minimax::MATE_SCORE;
 
-
 pub fn parallel_search(board: &mut Board, depth: u32) -> (Move, i32) {
     let current_color = board.to_move();
     let moves = generate_legal_moves(board, current_color);
@@ -14,22 +13,30 @@ pub fn parallel_search(board: &mut Board, depth: u32) -> (Move, i32) {
     if moves.is_empty() {
         let dummy_move = Move::new(Square(0), Square(0), None, None);
         let score = if board.is_in_check(current_color) {
-            -MATE_SCORE  // We're checkmated
+            -MATE_SCORE // We're checkmated
         } else {
-            0  // Stalemate
+            0 // Stalemate
         };
         return (dummy_move, score);
     }
 
-    moves.par_iter()
-        .map(|mv|{
+    moves
+        .par_iter()
+        .map(|mv| {
             let mut local_board = board.clone();
             let undo = local_board.make_move(mv);
 
-            let score = -alphabeta(&mut local_board, depth.saturating_sub(1), i32::MIN + 1, i32::MAX - 1, false);
+            let score = -alphabeta(
+                &mut local_board,
+                depth.saturating_sub(1),
+                i32::MIN + 1,
+                i32::MAX - 1,
+                false,
+            );
             local_board.unmake_move(mv, undo);
 
             (*mv, score)
-        }).max_by_key(|&(_, score)| score)
+        })
+        .max_by_key(|&(_, score)| score)
         .expect("iterator is non-empty")
-    }
+}

@@ -1,6 +1,6 @@
-pub mod timer;
-pub mod statistics;
 pub mod harness;
+pub mod statistics;
+pub mod timer;
 
-pub use harness::{BenchmarkConfig, BenchmarkResult, run_benchmark};
+pub use harness::{run_benchmark, BenchmarkConfig, BenchmarkResult};
 pub use statistics::BenchmarkStats;

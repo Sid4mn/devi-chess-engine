@@ -1,7 +1,6 @@
+use devi::board::*;
 use devi::moves::generate_legal_moves;
 use devi::types::*;
-use devi::board::*;
-
 
 #[test]
 fn test_empty_board_creation() {
@@ -35,20 +34,41 @@ fn test_piece_placement_and_retrieval() {
 fn test_starting_position_setup() {
     let mut board = Board::new();
     board.setup_starting_position();
-    
+
     // Test white pieces
-    assert_eq!(board.get_piece(Square(4)), Some(Piece::new(PieceType::King, Color::White))); // e1
-    assert_eq!(board.get_piece(Square(3)), Some(Piece::new(PieceType::Queen, Color::White))); // d1
-    assert_eq!(board.get_piece(Square(0)), Some(Piece::new(PieceType::Rook, Color::White))); // a1
-    
-    // Test black pieces  
-    assert_eq!(board.get_piece(Square(60)), Some(Piece::new(PieceType::King, Color::Black))); // e8
-    assert_eq!(board.get_piece(Square(59)), Some(Piece::new(PieceType::Queen, Color::Black))); // d8
-    
+    assert_eq!(
+        board.get_piece(Square(4)),
+        Some(Piece::new(PieceType::King, Color::White))
+    ); // e1
+    assert_eq!(
+        board.get_piece(Square(3)),
+        Some(Piece::new(PieceType::Queen, Color::White))
+    ); // d1
+    assert_eq!(
+        board.get_piece(Square(0)),
+        Some(Piece::new(PieceType::Rook, Color::White))
+    ); // a1
+
+    // Test black pieces
+    assert_eq!(
+        board.get_piece(Square(60)),
+        Some(Piece::new(PieceType::King, Color::Black))
+    ); // e8
+    assert_eq!(
+        board.get_piece(Square(59)),
+        Some(Piece::new(PieceType::Queen, Color::Black))
+    ); // d8
+
     // Test pawns
-    assert_eq!(board.get_piece(Square(8)), Some(Piece::new(PieceType::Pawn, Color::White))); // a2
-    assert_eq!(board.get_piece(Square(48)), Some(Piece::new(PieceType::Pawn, Color::Black))); // a7
-    
+    assert_eq!(
+        board.get_piece(Square(8)),
+        Some(Piece::new(PieceType::Pawn, Color::White))
+    ); // a2
+    assert_eq!(
+        board.get_piece(Square(48)),
+        Some(Piece::new(PieceType::Pawn, Color::Black))
+    ); // a7
+
     // Test empty center
     assert!(board.is_empty(Square(28))); // e4
     assert!(board.is_empty(Square(35))); // d5
@@ -56,5 +76,4 @@ fn test_starting_position_setup() {
     let black_legal_moves = generate_legal_moves(&mut board, Color::Black);
 
     assert_eq!(black_legal_moves.len(), 20);
-
 }

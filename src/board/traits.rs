@@ -29,12 +29,12 @@ pub trait BoardRepresentation {
     // Move execution
     fn make_move(&mut self, mv: &Move) -> UndoMove;
     fn unmake_move(&mut self, mv: &Move, undo: UndoMove);
-    
+
     // Position queries
     fn find_king(&self, color: Color) -> Option<Square>;
     fn is_in_check(&self, color: Color) -> bool;
     fn is_square_attacked(&self, square: Square, by_color: Color) -> bool;
-    
+
     // Board setup/manipulation
     fn setup_starting_position(&mut self);
     fn clear(&mut self);
@@ -50,7 +50,9 @@ pub trait BoardRepresentation {
         }
         count
     }
-    
+
     fn to_fen(&self) -> String;
-    fn from_fen(fen: &str) -> Result<Self, String> where Self: Sized;
+    fn from_fen(fen: &str) -> Result<Self, String>
+    where
+        Self: Sized;
 }

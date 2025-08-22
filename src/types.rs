@@ -1,9 +1,9 @@
-use core::fmt; 
+use core::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
     White,
-    Black
+    Black,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PieceType {
@@ -12,13 +12,13 @@ pub enum PieceType {
     Bishop,
     Rook,
     Queen,
-    King
+    King,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpecialMove {
     Castle,
     Promotion,
-    EnPassant
+    EnPassant,
 }
 
 pub type CastleMask = u8;
@@ -37,12 +37,15 @@ pub struct Piece {
 }
 
 impl Piece {
-    pub fn new( p_type: PieceType, color: Color) -> Piece {
-        Piece {piece_type: p_type, color: color, }
+    pub fn new(p_type: PieceType, color: Color) -> Piece {
+        Piece {
+            piece_type: p_type,
+            color: color,
+        }
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Square (pub u8); // 0-63
+pub struct Square(pub u8); // 0-63
 
 impl Square {
     pub fn new(val: u8) -> Self {
@@ -51,9 +54,9 @@ impl Square {
     }
 
     pub fn file(self) -> char {
-       (b'a' + (self.0 % 8)) as char
-        }
-    
+        (b'a' + (self.0 % 8)) as char
+    }
+
     pub fn rank(self) -> char {
         (b'1' + (self.0 / 8)) as char
     }
@@ -68,16 +71,15 @@ impl Square {
 
 impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f,"{}{}", self.file(), self.rank())
+        write!(f, "{}{}", self.file(), self.rank())
     }
 }
 
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f,"{}", self.to_algebraic())
+        write!(f, "{}", self.to_algebraic())
     }
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Move {
@@ -87,13 +89,18 @@ pub struct Move {
     pub promotion: Option<PieceType>,
 }
 
-impl Move { 
-    pub fn new(_from: Square, _to: Square, special: Option<SpecialMove>, _promo: Option<PieceType>) -> Self {
+impl Move {
+    pub fn new(
+        _from: Square,
+        _to: Square,
+        special: Option<SpecialMove>,
+        _promo: Option<PieceType>,
+    ) -> Self {
         Move {
             from: _from,
             to: _to,
             special_move: special,
-            promotion: _promo
+            promotion: _promo,
         }
     }
 
@@ -102,12 +109,12 @@ impl Move {
         let from_rank = (self.from.0 / 8) as u8 + b'1';
         let to_file = (self.to.0 % 8) as u8 + b'a';
         let to_rank = (self.to.0 / 8) as u8 + b'1';
-        
-        let mut result = format!("{}{}{}{}", 
-            from_file as char, from_rank as char,
-            to_file as char, to_rank as char
+
+        let mut result = format!(
+            "{}{}{}{}",
+            from_file as char, from_rank as char, to_file as char, to_rank as char
         );
-        
+
         if let Some(promotion) = self.promotion {
             result.push(match promotion {
                 PieceType::Queen => 'q',
@@ -117,8 +124,7 @@ impl Move {
                 _ => '?',
             });
         }
-        
+
         result
     }
 }
-

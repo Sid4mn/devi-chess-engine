@@ -1,7 +1,7 @@
 use crate::board::{Board, BoardRepresentation};
+use crate::evaluation::evaluate;
 use crate::moves::generate_legal_moves;
 use crate::types::*;
-use crate::evaluation::evaluate;
 
 pub const INFINITY: i32 = 1_000_000;
 pub const MATE_SCORE: i32 = 100_000;
@@ -17,7 +17,11 @@ pub fn minimax(board: &mut Board, depth: u32, maximizing_player: bool) -> i32 {
     if moves.is_empty() {
         if board.is_in_check(current_color) {
             //Checkmate - return negative score for losing side
-            return if maximizing_player { -MATE_SCORE } else { MATE_SCORE };
+            return if maximizing_player {
+                -MATE_SCORE
+            } else {
+                MATE_SCORE
+            };
         } else {
             //Stalemate - draw
             return 0;
@@ -45,7 +49,13 @@ pub fn minimax(board: &mut Board, depth: u32, maximizing_player: bool) -> i32 {
     }
 }
 
-pub fn alphabeta(board: &mut Board, depth: u32, mut alpha: i32, mut beta: i32, maximizing_player: bool) -> i32 {
+pub fn alphabeta(
+    board: &mut Board,
+    depth: u32,
+    mut alpha: i32,
+    mut beta: i32,
+    maximizing_player: bool,
+) -> i32 {
     if depth == 0 {
         return evaluate(board);
     }
@@ -56,7 +66,11 @@ pub fn alphabeta(board: &mut Board, depth: u32, mut alpha: i32, mut beta: i32, m
     if moves.is_empty() {
         if board.is_in_check(current_color) {
             //Checkmate - return negative score for losing side
-            return if maximizing_player { -MATE_SCORE } else { MATE_SCORE };
+            return if maximizing_player {
+                -MATE_SCORE
+            } else {
+                MATE_SCORE
+            };
         } else {
             //Stalemate - draw
             return 0;
@@ -95,9 +109,9 @@ pub fn search(board: &mut Board, depth: u32) -> (Move, i32) {
     if moves.is_empty() {
         let dummy_move = Move::new(Square(0), Square(0), None, None);
         let score = if board.is_in_check(current_color) {
-            -MATE_SCORE  //We're checkmated
+            -MATE_SCORE //We're checkmated
         } else {
-            0  //Stalemate
+            0 //Stalemate
         };
         return (dummy_move, score);
     }
@@ -109,7 +123,7 @@ pub fn search(board: &mut Board, depth: u32) -> (Move, i32) {
         let undo = board.make_move(&mv);
         let score = -alphabeta(board, depth - 1, -i32::MAX, i32::MAX, false);
         board.unmake_move(&mv, undo);
-        
+
         if score > best_score {
             best_score = score;
             best_move = mv;

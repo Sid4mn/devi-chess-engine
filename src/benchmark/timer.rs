@@ -11,11 +11,11 @@ impl PrecisionTimer {
             start: Instant::now(),
         }
     }
-    
+
     pub fn elapsed_micros(&self) -> u128 {
         self.start.elapsed().as_micros()
     }
-    
+
     pub fn elapsed_millis_f64(&self) -> f64 {
         self.start.elapsed().as_micros() as f64 / 1000.0
     }

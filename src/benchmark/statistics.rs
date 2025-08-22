@@ -23,29 +23,28 @@ impl BenchmarkStats {
                 percentile_95: 0.0,
             };
         }
-        
+
         let mut sorted = samples.to_vec();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        
+
         let mean = samples.iter().sum::<f64>() / samples.len() as f64;
-        
+
         let median = if sorted.len() % 2 == 0 {
             (sorted[sorted.len() / 2 - 1] + sorted[sorted.len() / 2]) / 2.0
         } else {
             sorted[sorted.len() / 2]
         };
-        
-        let variance = samples.iter()
-            .map(|x| (x - mean).powi(2))
-            .sum::<f64>() / samples.len() as f64;
+
+        let variance =
+            samples.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / samples.len() as f64;
         let std_dev = variance.sqrt();
-        
+
         let min = sorted[0];
         let max = sorted[sorted.len() - 1];
-        
+
         let p95_index = ((sorted.len() as f64 * 0.95) as usize).min(sorted.len() - 1);
         let percentile_95 = sorted[p95_index];
-        
+
         BenchmarkStats {
             samples: samples.to_vec(),
             mean,
@@ -56,7 +55,7 @@ impl BenchmarkStats {
             percentile_95,
         }
     }
-    
+
     pub fn searches_per_second(&self) -> f64 {
         if self.median > 0.0 {
             1000.0 / self.median

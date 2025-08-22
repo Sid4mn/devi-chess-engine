@@ -2,11 +2,11 @@ use crate::board::{Board, BoardRepresentation};
 use crate::types::*;
 
 const PIECE_VALUES: [i32; 6] = [
-    100, //PAWN
-    320, //KNIGHT
-    330, //BISHOP
-    500, //ROOK
-    900, //QUEEN
+    100,   //PAWN
+    320,   //KNIGHT
+    330,   //BISHOP
+    500,   //ROOK
+    900,   //QUEEN
     20000, //KING
 ];
 
@@ -30,7 +30,6 @@ pub fn evaluate(board: &Board) -> i32 {
                 Color::Black => score -= piece_value,
             }
         }
-
     }
 
     score

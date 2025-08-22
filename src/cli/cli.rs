@@ -1,10 +1,9 @@
-use clap::{Parser};
+use clap::Parser;
 
 #[derive(Parser)]
 pub struct Cli {
-
     #[arg(long, default_value_t = 1)]
-    pub threads: usize, 
+    pub threads: usize,
 
     #[arg(long, default_value_t = 4)]
     pub depth: u32,
@@ -17,7 +16,7 @@ pub struct Cli {
 
     #[arg(long)]
     pub benchmark: bool,
-    
+
     #[arg(long)]
     pub soak: bool,
 
@@ -48,7 +47,7 @@ mod tests {
         assert_eq!(args.threads, 1);
     }
 
-    #[test] 
+    #[test]
     fn test_custom_threads() {
         let args = parse_test_args(&["devi", "--threads", "8"]);
         assert_eq!(args.threads, 8);

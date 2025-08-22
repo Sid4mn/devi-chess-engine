@@ -1,6 +1,6 @@
+use crate::board::{Board, BoardRepresentation};
 use crate::moves::generate_moves;
 use crate::types::*;
-use crate::board::{Board, BoardRepresentation};
 
 pub fn generate_legal_moves(board: &mut Board, color: Color) -> Vec<Move> {
     let mut legal_moves = Vec::new();
