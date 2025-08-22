@@ -13,8 +13,7 @@
 | 4       | 524.52            | 3.17×   | 79.2%      |
 | 8       | 790.20            | **4.77×** | **59.6%** |
 
-
-![Speedup vs threads (measured vs ideal)](../benchmarks/speedup.png)
+![Speedup vs threads](https://raw.githubusercontent.com/Sid4mn/devi-chess-engine/v0.2.2/benchmarks/speedup_hires.png)
 
 *Amdahl view.* Scaling 1→8 threads reached **4.77×**; a simple fit implies a serial fraction ≈ **0.10**, matching the observed efficiency ceiling. The 59.6% efficiency at 8 threads reflects typical memory subsystem contention and synchronization overhead in shared-memory parallel search.
 

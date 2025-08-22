@@ -1,0 +1,49 @@
+<h1 id="parallel-scaling-of-alpha-beta-tree-search-rust-rayon">Parallel
+Scaling of Alpha-Beta Tree Search (Rust + Rayon)</h1>
+<p><em>A reproducible HPC probe for irregular tree search on an 8-core
+CPU.</em></p>
+<p><strong>Motivation.</strong> Irregular, branchy tree search stresses
+parallel runtimes via load imbalance and dynamic work distribution. My
+aim is a <strong>clean, reproducible</strong> scaling measurement-not a
+top chess engine. Consistent with <strong>Amdahl’s law</strong>, small
+serial fractions bound speedup as cores increase. This project serves as
+a research probe for understanding parallel efficiency limits in
+tree-structured computations.</p>
+<p><strong>Implementation.</strong> Perft-validated Rust engine (correct
+through depth 7); fixed-depth alpha-beta (d=4); <strong>Lazy-SMP root
+split</strong> via Rayon with lock-free parallel search. Benchmarks on
+<strong>Apple M1 Pro (8-core: 6 performance + 2 efficiency)</strong>
+with 5 warmup + 10 measurement runs per configuration. Statistical
+robustness via median timing and outlier detection.</p>
+<p><strong>Results.</strong> | Threads | Searches/s (d=4) | Speedup |
+Efficiency | |——–:|——————:|——–:|———–:| | 1 | 165.65 | 1.00× | 100.0% | |
+2 | 289.39 | 1.75× | 87.4% | | 4 | 524.52 | 3.17× | 79.2% | | 8 | 790.20
+| <strong>4.77×</strong> | <strong>59.6%</strong> |</p>
+<figure>
+<img src="../benchmarks/speedup.png"
+alt="Speedup vs threads (measured vs ideal)" />
+<figcaption aria-hidden="true">Speedup vs threads (measured vs
+ideal)</figcaption>
+</figure>
+<p><em>Amdahl view.</em> Scaling 1→8 threads reached
+<strong>4.77×</strong>; a simple fit implies a serial fraction ≈
+<strong>0.10</strong>, matching the observed efficiency ceiling. The
+59.6% efficiency at 8 threads reflects typical memory subsystem
+contention and synchronization overhead in shared-memory parallel
+search.</p>
+<p><strong>Stability Validation.</strong> Soak test (100 iterations, 8
+threads): median 1.414ms, p95 2.268ms, showing the engine doesn’t
+degrade under sustained load.</p>
+<p><strong>Reproducibility.</strong> Tagged release:
+<strong>v0.2.2</strong> with artifacts.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/Sid4mn/devi-chess-engine.git</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> devi-chess-engine <span class="kw">&amp;&amp;</span> <span class="fu">git</span> checkout v0.2.2</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/threads.sh</span>   <span class="co"># regenerates benchmarks/speedup.csv and benchmarks/speedup.png</span></span></code></pre></div>
+<p><strong>Next Steps.</strong> (1) Compare root-only split vs shallow
+PV-split to quantify split-point effects on load imbalance. (2)
+Implement fault-tolerant search with panic recovery to study resilience
+overhead in parallel tree search.</p>
+<hr />
+<p><em>Contact: sid4mndev@gmail.com | GitHub:
+https://github.com/Sid4mn/devi-chess-engine</em></p>
