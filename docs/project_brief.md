@@ -28,7 +28,8 @@
 
 **Stability Validation.** Soak test (100 iterations, 8 threads): median 1.414ms, p95 2.268ms, showing the engine doesn't degrade under sustained load.
 
-**Reproducibility.** Tagged release: **v0.2.2** with artifacts.
+**Reproducibility.** Tagged release: **v0.2.3-fault** with artifacts.
+
 ```bash
 git clone https://github.com/Sid4mn/devi-chess-engine.git
 cd devi-chess-engine && git checkout v0.2.3-fault
@@ -36,7 +37,7 @@ cd devi-chess-engine && git checkout v0.2.3-fault
 ./scripts/run_fault.sh    # fault tolerance validation
 ```
 
-**Next Steps.** (1) Compare root-only split vs shallow PV-split to quantify split-point effects on load imbalance. (2) Implement fault-tolerant search with panic recovery to study resilience overhead in parallel tree search.
+**Next Steps.** (1) Compare root-only split vs shallow PV-split to quantify split-point effects on load imbalance. (2) Move ordering optimizations (MVV-LVA, killer moves) to reduce search tree size.
 
 ---
 *Contact: sid4mndev@gmail.com | GitHub: https://github.com/Sid4mn/devi-chess-engine*
