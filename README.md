@@ -54,6 +54,12 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 6
 
 # Perft divide (debug individual moves)
 cargo run --release -- --perft --perft-divide --depth 5
+
+# Fault tolerance testing
+cargo run --release -- --threads 4 --depth 4 --inject-panic 0
+
+# Comprehensive fault analysis
+cargo run --release -- --threads 4 --depth 4 --inject-panic 0 --dump-crashes
 ```
 
 ### Advanced Options
@@ -67,6 +73,9 @@ cargo run --release -- --soak --threads 4 --depth 4 --runs 50
 # Serial vs Parallel perft comparison
 cargo run --release -- --perft --threads 1 --depth 7 # Serial
 cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
+
+# Fault tolerance automation
+./scripts/run_fault.sh
 ```
 
 ### Flag Reference
@@ -81,6 +90,8 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 | `--perft` | Run perft move generation test | - |
 | `--parallel-perft` | Use parallel perft computation | false |
 | `--perft-divide` | Show perft results per root move | - |
+| `--inject-panic` | Inject panic at specific move index | - |
+| `--dump-crashes` | Enable crash logging and analysis | false |
 
 ## Weekly Deliverables
 
@@ -125,23 +136,50 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 - [x] **Automated reproduction scripts (threads.sh, soak.sh)**
 - [x] **Speedup achievement on 8 threads**
 
-**Week 3**: v2 Move Ordering & Optimization
+**Week 3**: **COMPLETED** - Fault Tolerance & Distributed Systems
+- [x] Fault injection mechanism via CLI flags
+- [x] Panic recovery with graceful degradation
+- [x] Thread-safe crash logging with JSON export
+- [x] Performance overhead measurement (<12% impact)
+- [x] Automated fault tolerance testing (run_fault.sh)
+- [x] **Demonstrable resilience under component failure**
+- [x] **Best-effort results from surviving workers**
+
+### Fault Tolerance Results
+```json
+{
+  "baseline": { "score": 0, "time_ms": 2.548 },
+  "fault_tests": [
+    { "fault_position": 0, "score": 0, "time_ms": 2.733, "overhead_percent": 7.3 },
+    { "fault_position": 5, "score": 0, "time_ms": 2.840, "overhead_percent": 11.5 },
+    { "fault_position": 10, "score": 0, "time_ms": 2.468, "overhead_percent": -3.1 },
+    { "fault_position": 15, "score": 0, "time_ms": 2.474, "overhead_percent": -2.9 }
+  ]
+}
+```
+
+**Week 4**: v2 Move Ordering & Optimization
 - [ ] MVV-LVA capture ordering
 - [ ] Killer move heuristic
 - [ ] Node reduction metrics
 
-**Week 4**: v3 Iterative Deepening
+**Week 5**: v3 Iterative Deepening
 - [ ] Time management
 - [ ] Principal variation table
 - [ ] Playable CLI interface
 
-**Week 5**: Cache & Memory Studies
+**Week 6**: Cache & Memory Studies
 - [ ] Transposition table experiments
 - [ ] Cache miss analysis with perf
 - [ ] Memory optimization
 
 ## Current Status
-**Week 2 - Complete**
+**Week 3 - Complete** - Fault tolerance implementation with panic recovery and performance measurement
+
+## Release History
+- **v0.2.3-fault**: Fault tolerance implementation with panic recovery
+- **v0.2.2**: Parallel search optimization and benchmarking suite
+- **v0.2.1**: Core engine with perft validation
 
 ## Contributing
 This is primarily a learning project, but suggestions and discussions are welcome!

@@ -1,0 +1,32 @@
+{
+  "baseline": {
+    "score": 0,
+    "time_ms": 2.443
+  },
+  "fault_tests": [
+    {
+      "fault_position": 0,
+      "score": 0,
+      "time_ms": 2.927,
+      "overhead_percent": 19.8
+    },
+    {
+      "fault_position": 5,
+      "score": 0,
+      "time_ms": 2.717,
+      "overhead_percent": 11.2
+    },
+    {
+      "fault_position": 10,
+      "score": 0,
+      "time_ms": 3.136,
+      "overhead_percent": 28.4
+    },
+    {
+      "fault_position": 15,
+      "score": 0,
+      "time_ms": 3.101,
+      "overhead_percent": 26.9
+    }
+  ]
+}

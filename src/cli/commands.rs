@@ -3,7 +3,7 @@ use crate::board::{Board, BoardRepresentation};
 use crate::cli::Cli;
 use crate::evaluation::evaluate;
 use crate::moves::{perft, perft_divide, perft_parallel};
-use crate::search::{parallel_search, search};
+use crate::search::{parallel_search, search, search_root_fault};
 use rayon;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
@@ -32,7 +32,22 @@ pub fn run_single_search(args: &Cli) {
     println!("Starting position evaluation: {}", evaluate(&board));
     println!("Searching to depth {}...", args.depth);
 
-    let (best_move, _score) = if args.threads == 1 {
+    let use_fault_tolerant = args.inject_panic.is_some() || args.dump_crashes;
+
+    let (best_move, _score) = if use_fault_tolerant{
+        println!("Using fault-tolerant search with panic injection at move {:?}", args.inject_panic);
+        
+        if args.threads == 1 {
+            eprintln!("Warning: Fault injection requires multiple threads. Setting threads to 4.");
+        }
+        
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(if args.threads == 1 { 4 } else { args.threads })
+            .build()
+            .expect("Failed to create thread pool");
+            
+        pool.install(|| search_root_fault(&mut board, args.depth, args.inject_panic))
+    } else if args.threads == 1 {
         search(&mut board, args.depth)
     } else {
         let pool = rayon::ThreadPoolBuilder::new()
@@ -43,6 +58,75 @@ pub fn run_single_search(args: &Cli) {
     };
 
     println!("Best move: {} -> {}", best_move.from.0, best_move.to.0);
+}
+
+pub fn run_fault_analysis(args: &Cli) {
+    println!("--- FAULT TOLERANCE ANALYSIS ---");
+    println!("Testing panic recovery overhead...");
+
+    let mut board = Board::new();
+    board.setup_starting_position();
+
+    create_dir_all("docs").expect("Failed to create docs director");
+
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(args.threads)
+        .build()
+        .expect("Failed to create thread pool");
+
+    let start = Instant::now();
+    let (_, baseline_score) = pool.install(|| parallel_search(&mut board, args.depth));
+    let baseline_time = start.elapsed();
+
+    let test_positions = vec![0, 5, 10, 15];
+    let mut fault_results = Vec::new();
+
+        for panic_at in test_positions {
+        let start = Instant::now();
+        let (_mv, score) = pool.install(|| search_root_fault(&mut board, args.depth, Some(panic_at)));
+        let fault_time = start.elapsed();
+        
+        let overhead_percent = ((fault_time.as_micros() as f64 / baseline_time.as_micros() as f64) - 1.0) * 100.0;
+        
+        fault_results.push((panic_at, score, fault_time, overhead_percent));
+        
+        println!(
+            "Fault at move {}: Score={}, Time={:.3}ms, Overhead={:.1}%",
+            panic_at,
+            score,
+            fault_time.as_micros() as f64 / 1000.0,
+            overhead_percent
+        );
+    }
+    
+    // Write results to JSON
+    let mut file = File::create("docs/fault_analysis.json").expect("Failed to create JSON file");
+    writeln!(file, "{{").unwrap();
+    writeln!(file, "  \"baseline\": {{").unwrap();
+    writeln!(file, "    \"score\": {},", baseline_score).unwrap();
+    writeln!(file, "    \"time_ms\": {:.3}", baseline_time.as_micros() as f64 / 1000.0).unwrap();
+    writeln!(file, "  }},").unwrap();
+    writeln!(file, "  \"fault_tests\": [").unwrap();
+    
+    for (i, (pos, score, time, overhead)) in fault_results.iter().enumerate() {
+        writeln!(file, "    {{").unwrap();
+        writeln!(file, "      \"fault_position\": {},", pos).unwrap();
+        writeln!(file, "      \"score\": {},", score).unwrap();
+        writeln!(file, "      \"time_ms\": {:.3},", time.as_micros() as f64 / 1000.0).unwrap();
+        writeln!(file, "      \"overhead_percent\": {:.1}", overhead).unwrap();
+        write!(file, "    }}").unwrap();
+        if i < fault_results.len() - 1 {
+            writeln!(file, ",").unwrap();
+        } else {
+            writeln!(file).unwrap();
+        }
+    }
+    
+    writeln!(file, "  ]").unwrap();
+    writeln!(file, "}}").unwrap();
+    
+    println!("\nFault analysis results written to docs/fault_analysis.json");
+
 }
 
 pub fn run_soak_test(args: &Cli) {

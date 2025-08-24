@@ -28,6 +28,12 @@ pub struct Cli {
 
     #[arg(long)]
     pub perft_divide: bool,
+
+    #[arg(long)]
+    pub inject_panic: Option<usize>,
+
+    #[arg(long)]
+    pub dump_crashes: bool,
 }
 
 pub fn parse_args() -> Cli {
