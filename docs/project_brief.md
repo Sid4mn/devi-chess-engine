@@ -13,17 +13,27 @@
 | 4       | 524.52            | 3.17×   | 79.2%      |
 | 8       | 790.20            | **4.77×** | **59.6%** |
 
-![Speedup vs threads](https://raw.githubusercontent.com/Sid4mn/devi-chess-engine/v0.2.2/benchmarks/speedup_hires.png)
+![Speedup vs threads](https://raw.githubusercontent.com/Sid4mn/devi-chess-engine/v0.2.3-fault/benchmarks/speedup_hires.png)
 
 *Amdahl view.* Scaling 1→8 threads reached **4.77×**; a simple fit implies a serial fraction ≈ **0.10**, matching the observed efficiency ceiling. The 59.6% efficiency at 8 threads reflects typical memory subsystem contention and synchronization overhead in shared-memory parallel search.
+
+**Fault Tolerance.** Added worker crash recovery using `catch_unwind` boundaries around individual threads. When workers panic, remaining threads continue and produce valid results. Measured overhead: 22% max (avg 15.6%) when active, zero when disabled. Demonstrates resilient parallel computing under component failure.
+
+| Test Scenario | Overhead | Recovery |
+|---------------|----------|----------|
+| Fault at move 0 | 22.0% | ✓ |
+| Fault at move 5 | 13.2% | ✓ |
+| Fault at move 10 | 12.9% | ✓ |
+| Fault at move 15 | 14.1% | ✓ |
 
 **Stability Validation.** Soak test (100 iterations, 8 threads): median 1.414ms, p95 2.268ms, showing the engine doesn't degrade under sustained load.
 
 **Reproducibility.** Tagged release: **v0.2.2** with artifacts.
 ```bash
 git clone https://github.com/Sid4mn/devi-chess-engine.git
-cd devi-chess-engine && git checkout v0.2.2
+cd devi-chess-engine && git checkout v0.2.3-fault
 ./scripts/threads.sh   # regenerates benchmarks/speedup.csv and benchmarks/speedup.png
+./scripts/run_fault.sh    # fault tolerance validation
 ```
 
 **Next Steps.** (1) Compare root-only split vs shallow PV-split to quantify split-point effects on load imbalance. (2) Implement fault-tolerant search with panic recovery to study resilience overhead in parallel tree search.

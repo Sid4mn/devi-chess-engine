@@ -1,11 +1,16 @@
 #!/bin/bash
-# filepath: /Users/funinc/Documents/chess-engine-rust/chess-engine-rust/scripts/run_fault.sh
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "=== Fault Tolerance Testing ==="
+echo "Working from: $PROJECT_ROOT"
+cd "$PROJECT_ROOT"
+
 echo "Building in release mode..."
 cargo build --release
 
-BINARY=../target/release/devi
+BINARY=./target/release/devi
 
 echo -e "\nTest 1: Baseline (no faults)"
 $BINARY --threads 4 --depth 4
