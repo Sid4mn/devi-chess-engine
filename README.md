@@ -126,7 +126,7 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 
 
 **Week 2**: **COMPLETED** - Parallel Scalability
-- [x] Lazy-SMP root parallelization with Rayon
+- [x] Root parallelization with Rayon
 - [x] Multi-thread benchmarking (1/2/4/8 threads)
 - [x] CLI with clap
 - [x] Comprehensive benchmark suite (--benchmark flag)

@@ -3,7 +3,7 @@
 
 **Motivation.** Irregular, branchy tree search stresses parallel runtimes via load imbalance and dynamic work distribution. My aim is a **clean, reproducible** scaling measurement-not a top chess engine. Consistent with **Amdahl's law**, small serial fractions bound speedup as cores increase. This project serves as a research probe for understanding parallel efficiency limits in tree-structured computations.
 
-**Implementation.** Perft-validated Rust engine (correct through depth 7); fixed-depth alpha-beta (d=4); **Lazy-SMP root split** via Rayon with lock-free parallel search. Benchmarks on **Apple M1 Pro (8-core: 6 performance + 2 efficiency)** with 5 warmup + 10 measurement runs per configuration. Statistical robustness via median timing and outlier detection.
+**Implementation.** Perft-validated Rust engine (correct through depth 7); fixed-depth alpha-beta (d=4); **Root-level parallelization** via Rayon with lock-free parallel search. Benchmarks on **Apple M1 Pro (8-core: 6 performance + 2 efficiency)** with 5 warmup + 10 measurement runs per configuration. Statistical robustness via median timing and outlier detection.
 
 **Results.**
 | Threads | Searches/s (d=4) | Speedup | Efficiency |
