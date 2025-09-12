@@ -6,16 +6,16 @@
 **Implementation.** Perft-validated Rust engine (correct through depth 7); fixed-depth alpha-beta (d=4); **Root-level parallelization** via Rayon with lock-free parallel search. Benchmarks on **Apple M1 Pro (8-core: 6 performance + 2 efficiency)** with 5 warmup + 10 measurement runs per configuration. Statistical robustness via median timing and outlier detection.
 
 **Results.**
-| Threads | Searches/s (d=4) | Speedup | Efficiency |
-|--------:|------------------:|--------:|-----------:|
-| 1       | 165.65            | 1.00×   | 100.0%     |
-| 2       | 289.39            | 1.75×   | 87.4%      |
-| 4       | 524.52            | 3.17×   | 79.2%      |
-| 8       | 790.20            | **4.77×** | **59.6%** |
+| Threads | Speedup (d=4) | Efficiency | Speedup (d=7) | Efficiency |
+|--------:|--------------:|-----------:|--------------:|-----------:|
+| 1       | 1.00×         | 100.0%     | 1.00×         | 100.0%     |
+| 2       | 1.75×         | 87.4%      | 1.88×         | 94.0%      |
+| 4       | 3.17×         | 79.2%      | 3.65×         | 91.3%      |
+| 8       | **4.77×**     | **59.6%**  | **6.28×**     | **78.5%**  |
 
 ![Speedup vs threads](https://raw.githubusercontent.com/Sid4mn/devi-chess-engine/v0.2.3-fault/benchmarks/speedup_hires.png)
 
-*Amdahl view.* Scaling 1→8 threads reached **4.77×**; a simple fit implies a serial fraction ≈ **0.10**, matching the observed efficiency ceiling. The 59.6% efficiency at 8 threads reflects typical memory subsystem contention and synchronization overhead in shared-memory parallel search.
+*Scaling Analysis.* At depth 4, achieved **4.77×** speedup (Amdahl's law, S≈0.10). At depth 7, reached **6.28×** speedup, demonstrating **Gustafson's law** - parallel efficiency improves as problem size scales. The exponential growth in search tree size (O(b^d)) overwhelms constant serial overhead, validating that deeper analysis favors parallelization.
 
 **Fault Tolerance.** Added worker crash recovery using `catch_unwind` boundaries around individual threads. When workers panic, remaining threads continue and produce valid results. Measured overhead: 22% max (avg 15.6%) when active, zero when disabled. Demonstrates resilient parallel computing under component failure.
 
