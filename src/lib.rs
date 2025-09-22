@@ -6,3 +6,4 @@ pub mod moves;
 pub mod search;
 pub mod types;
 pub mod utils;
+pub mod scheduling;

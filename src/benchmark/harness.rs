@@ -1,6 +1,7 @@
 use crate::benchmark::statistics::BenchmarkStats;
 use crate::benchmark::timer::time_execution_millis;
 use crate::board::{Board, BoardRepresentation};
+use crate::scheduling::CorePolicy;
 use crate::search::{parallel_search, search};
 
 #[derive(Clone)]
@@ -9,6 +10,8 @@ pub struct BenchmarkConfig {
     pub warmup_runs: usize,
     pub measurement_runs: usize,
     pub thread_counts: Vec<usize>,
+    pub core_policy: CorePolicy,
+    pub mixed_ratio: f32,
 }
 
 impl Default for BenchmarkConfig {
@@ -18,6 +21,8 @@ impl Default for BenchmarkConfig {
             warmup_runs: 5,
             measurement_runs: 10,
             thread_counts: vec![1, 2, 4, 8],
+            core_policy: CorePolicy::None,
+            mixed_ratio: 0.75,
         }
     }
 }
@@ -29,6 +34,7 @@ pub struct BenchmarkResult {
     pub searches_per_second: f64,
     pub speedup: f64,
     pub efficiency: f64,
+    pub core_policy: CorePolicy
 }
 
 pub fn run_benchmark(config: &BenchmarkConfig) -> Vec<BenchmarkResult> {

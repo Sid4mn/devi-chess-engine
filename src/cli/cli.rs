@@ -1,4 +1,5 @@
 use clap::Parser;
+use crate::scheduling::CorePolicy;
 
 #[derive(Parser)]
 pub struct Cli {
@@ -34,6 +35,12 @@ pub struct Cli {
 
     #[arg(long)]
     pub dump_crashes: bool,
+
+    #[arg(long, value_enum, help = "Core scheduling policy for heterogeneous architectures")]
+    pub core_policy: Option<CorePolicy>,
+    
+    #[arg(long, default_value_t = 0.75, help = "Ratio of fast cores in mixed mode (0.0-1.0)")]
+    pub mixed_ratio: f32,
 }
 
 pub fn parse_args() -> Cli {
@@ -71,5 +78,18 @@ mod tests {
         assert_eq!(args.soak, true);
         assert_eq!(args.threads, 8);
         assert_eq!(args.runs, 100);
+    }
+
+    #[test]
+    fn test_core_policy() {
+        let args = parse_test_args(&["devi", "--core-policy", "fast"]);
+        assert!(args.core_policy.is_some());
+        assert!(matches!(args.core_policy, Some(CorePolicy::FastBias)));
+    }
+
+    #[test]
+    fn test_mixed_ratio() {
+        let args = parse_test_args(&["devi", "--mixed-ratio", "0.5"]);
+        assert_eq!(args.mixed_ratio, 0.5);
     }
 }

@@ -3,6 +3,8 @@ use crate::board::{Board, BoardRepresentation};
 use crate::cli::Cli;
 use crate::evaluation::evaluate;
 use crate::moves::{perft, perft_divide, perft_parallel};
+use crate::scheduling::CorePolicy;
+use crate::search::parallel::parallel_search_with_policy;
 use crate::search::{parallel_search, search, search_root_fault};
 use rayon;
 use std::fs::{create_dir_all, File};
@@ -14,12 +16,22 @@ pub fn run_full_benchmark(args: &Cli) {
     board.setup_starting_position();
     println!("Starting position evaluation: {}", evaluate(&board));
 
+    let policy = args.core_policy.unwrap_or(CorePolicy::None);
+    let mixed_ratio = args.mixed_ratio;
+
     let config = BenchmarkConfig {
         depth: args.depth,
         warmup_runs: args.warmup,
         measurement_runs: args.runs,
-        thread_counts: vec![1, 2, 4, 8],
+        thread_counts: vec![args.threads],
+        core_policy: policy,
+        mixed_ratio: mixed_ratio
     };
+
+    println!("Core scheduling policy: {:?}", policy);
+    if matches!(policy, CorePolicy::Mixed) {
+        println!("Mixed ratio: {:.2} ({}% fast cores)", mixed_ratio, (mixed_ratio * 100.0) as u32);
+    }
 
     let results = run_benchmark(&config);
     export_benchmark_csv(&results);
@@ -31,6 +43,13 @@ pub fn run_single_search(args: &Cli) {
 
     println!("Starting position evaluation: {}", evaluate(&board));
     println!("Searching to depth {}...", args.depth);
+
+    let policy = args.core_policy.unwrap_or(CorePolicy::None);
+    let mixed_ratio = args.mixed_ratio;
+
+    if let Some(ref p) = args.core_policy {
+        println!("Using core policy: {:?}", p);
+    }
 
     let use_fault_tolerant = args.inject_panic.is_some() || args.dump_crashes;
 
@@ -50,11 +69,12 @@ pub fn run_single_search(args: &Cli) {
     } else if args.threads == 1 {
         search(&mut board, args.depth)
     } else {
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(args.threads)
-            .build()
-            .expect("Failed to create thread pool");
-        pool.install(|| parallel_search(&mut board, args.depth))
+        // let pool = rayon::ThreadPoolBuilder::new()
+        //     .num_threads(args.threads)
+        //     .build()
+        //     .expect("Failed to create thread pool");
+        // pool.install(|| parallel_search(&mut board, args.depth))
+        parallel_search_with_policy(&mut board, args.depth, policy, args.threads, mixed_ratio)
     };
 
     println!("Best move: {} -> {}", best_move.from.0, best_move.to.0);
@@ -81,7 +101,7 @@ pub fn run_fault_analysis(args: &Cli) {
     let test_positions = vec![0, 5, 10, 15];
     let mut fault_results = Vec::new();
 
-        for panic_at in test_positions {
+    for panic_at in test_positions {
         let start = Instant::now();
         let (_mv, score) = pool.install(|| search_root_fault(&mut board, args.depth, Some(panic_at)));
         let fault_time = start.elapsed();
@@ -126,7 +146,6 @@ pub fn run_fault_analysis(args: &Cli) {
     writeln!(file, "}}").unwrap();
     
     println!("\nFault analysis results written to docs/fault_analysis.json");
-
 }
 
 pub fn run_soak_test(args: &Cli) {
@@ -179,31 +198,13 @@ pub fn run_soak_test(args: &Cli) {
             min, median, p95, max
         );
 
-        write_soak_files(
-            &samples_ms,
-            args.threads,
-            args.depth,
-            args.runs,
-            min,
-            median,
-            p95,
-            max,
-        );
+        write_soak_files(&samples_ms,args.threads,args.depth,args.runs,min,median,p95,max);
     } else {
         println!("No samples collected!");
     }
 }
 
-fn write_soak_files(
-    samples: &[f64],
-    threads: usize,
-    depth: u32,
-    runs: usize,
-    min: f64,
-    median: f64,
-    p95: f64,
-    max: f64,
-) {
+fn write_soak_files(samples: &[f64], threads: usize, depth: u32, runs: usize, min: f64, median: f64, p95: f64, max: f64) {
     // Ensure docs directory exists
     if let Err(e) = create_dir_all("docs") {
         eprintln!("Warning: Failed to create docs directory: {}", e);
@@ -235,15 +236,7 @@ fn write_raw_samples(samples: &[f64]) -> std::io::Result<()> {
     Ok(())
 }
 
-fn write_soak_summary(
-    threads: usize,
-    depth: u32,
-    runs: usize,
-    min: f64,
-    median: f64,
-    p95: f64,
-    max: f64,
-) -> std::io::Result<()> {
+fn write_soak_summary(threads: usize, depth: u32, runs: usize, min: f64, median: f64, p95: f64, max: f64) -> std::io::Result<()> {
     let file = File::create("docs/soak_summary.txt")?;
     let mut writer = BufWriter::new(file);
 
@@ -338,23 +331,21 @@ fn format_with_commas(n: u64) -> String {
     result.chars().rev().collect()
 }
 
-pub fn export_benchmark_csv(results: &[BenchmarkResult]) {
-    use std::fs::File;
-    use std::io::Write;
-
-    let csv_path = "benchmarks/speedup.csv";
-    let mut file = File::create(csv_path).expect("Unable to create CSV file");
+pub fn export_benchmark_csv_with_policy(results: &[BenchmarkResult], policy: CorePolicy) {
+    let csv_path = format!("benchmarks/speedup_{:?}.csv", policy).to_lowercase();
+    let mut file = File::create(&csv_path).expect("Unable to create CSV file");
 
     writeln!(
         file,
-        "threads,median_ms,searches_per_sec,speedup,efficiency"
+        "threads,policy,median_ms,searches_per_sec,speedup,efficiency"
     )
     .unwrap();
     for result in results {
         writeln!(
             file,
-            "{},{:.3},{:.2},{:.2},{:.1}",
+            "{},{:?},{:.3},{:.2},{:.2},{:.1}",
             result.thread_count,
+            policy,
             result.stats.median,
             result.searches_per_second,
             result.speedup,
@@ -364,4 +355,8 @@ pub fn export_benchmark_csv(results: &[BenchmarkResult]) {
     }
 
     println!("\nBenchmark results exported to {}", csv_path);
+}
+
+pub fn export_benchmark_csv(results: &[BenchmarkResult]) {
+    export_benchmark_csv_with_policy(results, CorePolicy::None);
 }
