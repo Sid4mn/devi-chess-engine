@@ -44,8 +44,9 @@
 The Mixed policy's disappointing **48% performance** (versus 75% expected from core ratios) reveals that naive heterogeneous scheduling fails catastrophically. The 27% performance gap suggests E-core threads become critical-path bottlenecks that stall the entire search, as root-split parallelization assigns equal work to cores with 13× performance differences. This motivates heterogeneity-aware orchestration that dynamically routes complex subtrees to P-cores while using E-cores for shallow evaluation, matching work complexity to core capability.
 
 **Reproducibility.** Tagged releases with artifacts:
+- **v0.2.2-parallel**: Original parallel scaling implementation  
 - **v0.2.3-fault**: Fault tolerance implementation
-- **v0.3.0-hetero**: Heterogeneous scheduling experiments
+- **v0.3.0**: Heterogeneous scheduling experiments
 
 ```bash
 git clone https://github.com/Sid4mn/devi-chess-engine.git
@@ -68,10 +69,10 @@ cd devi-chess-engine && git checkout v0.3.0
 4. **Identified scheduling inefficiencies** in heterogeneity-oblivious runtimes
 
 **Next Steps.** 
-1. Implement **work-stealing scheduler** with P/E core pools to address Mixed policy inefficiency
-2. Design **heterogeneity-aware orchestrator** that routes heavy subtrees to P-cores
-3. Compare QoS-based scheduling (macOS) with **CPU affinity** (Linux) for validation
-4. Explore **dynamic depth adjustment** based on core tier assignment
+1. **Work-stealing scheduler** with separate P/E core pools
+2. **Heterogeneity-aware orchestrator** routing heavy subtrees to P-cores  
+3. **Partitioned transposition tables** - hot entries on P-core caches, cold on E-cores
+4. **PV-split parallelization** with core-aware work distribution (PV nodes -> P-cores)
 
 ---
 *Contact: sid4mndev@gmail.com | GitHub: https://github.com/Sid4mn/devi-chess-engine*
