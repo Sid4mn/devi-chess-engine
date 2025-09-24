@@ -21,10 +21,10 @@
 
 | Test Scenario | Overhead | Recovery |
 |---------------|----------|----------|
-| Fault at move 0 | 22.0% | ✓ |
-| Fault at move 5 | 13.2% | ✓ |
-| Fault at move 10 | 12.9% | ✓ |
-| Fault at move 15 | 14.1% | ✓ |
+| Fault at move 0 | 22.0% | ✅ |
+| Fault at move 5 | 13.2% | ✅ |
+| Fault at move 10 | 12.9% | ✅ |
+| Fault at move 15 | 14.1% | ✅ |
 
 **Stability Validation.** Soak test (100 iterations, 8 threads): median 1.414ms, p95 2.268ms, showing the engine doesn't degrade under sustained load.
 
