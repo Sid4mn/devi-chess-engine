@@ -3,7 +3,7 @@ pub mod board;
 pub mod cli;
 pub mod evaluation;
 pub mod moves;
+pub mod scheduling;
 pub mod search;
 pub mod types;
 pub mod utils;
-pub mod scheduling;

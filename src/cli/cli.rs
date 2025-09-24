@@ -1,5 +1,5 @@
-use clap::Parser;
 use crate::scheduling::CorePolicy;
+use clap::Parser;
 
 #[derive(Parser)]
 pub struct Cli {
@@ -36,10 +36,18 @@ pub struct Cli {
     #[arg(long)]
     pub dump_crashes: bool,
 
-    #[arg(long, value_enum, help = "Core scheduling policy for heterogeneous architectures")]
+    #[arg(
+        long,
+        value_enum,
+        help = "Core scheduling policy for heterogeneous architectures"
+    )]
     pub core_policy: Option<CorePolicy>,
-    
-    #[arg(long, default_value_t = 0.75, help = "Ratio of fast cores in mixed mode (0.0-1.0)")]
+
+    #[arg(
+        long,
+        default_value_t = 0.75,
+        help = "Ratio of fast cores in mixed mode (0.0-1.0)"
+    )]
     pub mixed_ratio: f32,
 }
 

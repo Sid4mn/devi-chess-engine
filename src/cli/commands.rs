@@ -25,12 +25,16 @@ pub fn run_full_benchmark(args: &Cli) {
         measurement_runs: args.runs,
         thread_counts: vec![args.threads],
         core_policy: policy,
-        mixed_ratio: mixed_ratio
+        mixed_ratio: mixed_ratio,
     };
 
     println!("Core scheduling policy: {:?}", policy);
     if matches!(policy, CorePolicy::Mixed) {
-        println!("Mixed ratio: {:.2} ({}% fast cores)", mixed_ratio, (mixed_ratio * 100.0) as u32);
+        println!(
+            "Mixed ratio: {:.2} ({}% fast cores)",
+            mixed_ratio,
+            (mixed_ratio * 100.0) as u32
+        );
     }
 
     let results = run_benchmark(&config);
@@ -53,18 +57,21 @@ pub fn run_single_search(args: &Cli) {
 
     let use_fault_tolerant = args.inject_panic.is_some() || args.dump_crashes;
 
-    let (best_move, _score) = if use_fault_tolerant{
-        println!("Using fault-tolerant search with panic injection at move {:?}", args.inject_panic);
-        
+    let (best_move, _score) = if use_fault_tolerant {
+        println!(
+            "Using fault-tolerant search with panic injection at move {:?}",
+            args.inject_panic
+        );
+
         if args.threads == 1 {
             eprintln!("Warning: Fault injection requires multiple threads. Setting threads to 4.");
         }
-        
+
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(if args.threads == 1 { 4 } else { args.threads })
             .build()
             .expect("Failed to create thread pool");
-            
+
         pool.install(|| search_root_fault(&mut board, args.depth, args.inject_panic))
     } else if args.threads == 1 {
         search(&mut board, args.depth)
@@ -103,13 +110,15 @@ pub fn run_fault_analysis(args: &Cli) {
 
     for panic_at in test_positions {
         let start = Instant::now();
-        let (_mv, score) = pool.install(|| search_root_fault(&mut board, args.depth, Some(panic_at)));
+        let (_mv, score) =
+            pool.install(|| search_root_fault(&mut board, args.depth, Some(panic_at)));
         let fault_time = start.elapsed();
-        
-        let overhead_percent = ((fault_time.as_micros() as f64 / baseline_time.as_micros() as f64) - 1.0) * 100.0;
-        
+
+        let overhead_percent =
+            ((fault_time.as_micros() as f64 / baseline_time.as_micros() as f64) - 1.0) * 100.0;
+
         fault_results.push((panic_at, score, fault_time, overhead_percent));
-        
+
         println!(
             "Fault at move {}: Score={}, Time={:.3}ms, Overhead={:.1}%",
             panic_at,
@@ -118,21 +127,31 @@ pub fn run_fault_analysis(args: &Cli) {
             overhead_percent
         );
     }
-    
+
     // Write results to JSON
     let mut file = File::create("docs/fault_analysis.json").expect("Failed to create JSON file");
     writeln!(file, "{{").unwrap();
     writeln!(file, "  \"baseline\": {{").unwrap();
     writeln!(file, "    \"score\": {},", baseline_score).unwrap();
-    writeln!(file, "    \"time_ms\": {:.3}", baseline_time.as_micros() as f64 / 1000.0).unwrap();
+    writeln!(
+        file,
+        "    \"time_ms\": {:.3}",
+        baseline_time.as_micros() as f64 / 1000.0
+    )
+    .unwrap();
     writeln!(file, "  }},").unwrap();
     writeln!(file, "  \"fault_tests\": [").unwrap();
-    
+
     for (i, (pos, score, time, overhead)) in fault_results.iter().enumerate() {
         writeln!(file, "    {{").unwrap();
         writeln!(file, "      \"fault_position\": {},", pos).unwrap();
         writeln!(file, "      \"score\": {},", score).unwrap();
-        writeln!(file, "      \"time_ms\": {:.3},", time.as_micros() as f64 / 1000.0).unwrap();
+        writeln!(
+            file,
+            "      \"time_ms\": {:.3},",
+            time.as_micros() as f64 / 1000.0
+        )
+        .unwrap();
         writeln!(file, "      \"overhead_percent\": {:.1}", overhead).unwrap();
         write!(file, "    }}").unwrap();
         if i < fault_results.len() - 1 {
@@ -141,10 +160,10 @@ pub fn run_fault_analysis(args: &Cli) {
             writeln!(file).unwrap();
         }
     }
-    
+
     writeln!(file, "  ]").unwrap();
     writeln!(file, "}}").unwrap();
-    
+
     println!("\nFault analysis results written to docs/fault_analysis.json");
 }
 
@@ -198,13 +217,31 @@ pub fn run_soak_test(args: &Cli) {
             min, median, p95, max
         );
 
-        write_soak_files(&samples_ms,args.threads,args.depth,args.runs,min,median,p95,max);
+        write_soak_files(
+            &samples_ms,
+            args.threads,
+            args.depth,
+            args.runs,
+            min,
+            median,
+            p95,
+            max,
+        );
     } else {
         println!("No samples collected!");
     }
 }
 
-fn write_soak_files(samples: &[f64], threads: usize, depth: u32, runs: usize, min: f64, median: f64, p95: f64, max: f64) {
+fn write_soak_files(
+    samples: &[f64],
+    threads: usize,
+    depth: u32,
+    runs: usize,
+    min: f64,
+    median: f64,
+    p95: f64,
+    max: f64,
+) {
     // Ensure docs directory exists
     if let Err(e) = create_dir_all("docs") {
         eprintln!("Warning: Failed to create docs directory: {}", e);
@@ -236,7 +273,15 @@ fn write_raw_samples(samples: &[f64]) -> std::io::Result<()> {
     Ok(())
 }
 
-fn write_soak_summary(threads: usize, depth: u32, runs: usize, min: f64, median: f64, p95: f64, max: f64) -> std::io::Result<()> {
+fn write_soak_summary(
+    threads: usize,
+    depth: u32,
+    runs: usize,
+    min: f64,
+    median: f64,
+    p95: f64,
+    max: f64,
+) -> std::io::Result<()> {
     let file = File::create("docs/soak_summary.txt")?;
     let mut writer = BufWriter::new(file);
 

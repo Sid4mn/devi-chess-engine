@@ -1,12 +1,11 @@
-use std::panic::{self, AssertUnwindSafe};
-use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
 use crate::board::{Board, BoardRepresentation};
 use crate::moves::generate_legal_moves;
 use crate::search::minimax::alphabeta;
 use crate::types::*;
 use rayon::prelude::*;
-
+use std::panic::{self, AssertUnwindSafe};
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 use crate::search::minimax::MATE_SCORE;
 
@@ -16,10 +15,14 @@ struct CrashInfo {
     root_index: usize,
     move_attempted: String,
     panic_message: String,
-    timestamp: SystemTime
+    timestamp: SystemTime,
 }
 
-pub fn search_root_fault(board: &mut Board, depth: u32, inject_panic_at: Option<usize>) -> (Move, i32) {
+pub fn search_root_fault(
+    board: &mut Board,
+    depth: u32,
+    inject_panic_at: Option<usize>,
+) -> (Move, i32) {
     let current_color = board.to_move();
     let moves = generate_legal_moves(board, current_color);
 
@@ -43,7 +46,7 @@ pub fn search_root_fault(board: &mut Board, depth: u32, inject_panic_at: Option<
 
             let result = panic::catch_unwind(AssertUnwindSafe(|| {
                 let mut local_board = board.clone();
-                
+
                 if inject_panic_at == Some(index) {
                     panic!("Injected fault at root move {}", index);
                 }
@@ -57,7 +60,7 @@ pub fn search_root_fault(board: &mut Board, depth: u32, inject_panic_at: Option<
                     false,
                 );
                 local_board.unmake_move(mv, undo);
-                
+
                 (*mv, score)
             }));
 
@@ -79,13 +82,13 @@ pub fn search_root_fault(board: &mut Board, depth: u32, inject_panic_at: Option<
                         panic_message: panic_message.clone(),
                         timestamp: SystemTime::now(),
                     };
-                    
+
                     if let Ok(mut log) = crash_log_clone.lock() {
                         log.push(crash_info);
                     }
 
                     eprintln!("Worker {} panicked: {}", index, panic_message);
-                    
+
                     None
                 }
             }
@@ -108,36 +111,49 @@ pub fn search_root_fault(board: &mut Board, depth: u32, inject_panic_at: Option<
         .into_iter()
         .max_by_key(|&(_, score)| score)
         .expect("We already checked that results is non-empty")
-
 }
 
 fn export_crash_logs(crashes: &[CrashInfo]) {
     use std::fs::{create_dir_all, File};
     use std::io::Write;
-    
+
     // Create crashes directory
     if let Err(e) = create_dir_all("crashes") {
         eprintln!("Failed to create crashes directory: {}", e);
         return;
     }
-    
+
     // Generate timestamp for filename
     let timestamp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_millis();
-    
+
     let filename = format!("crashes/crash_{}.json", timestamp);
-    
+
     if let Ok(mut file) = File::create(&filename) {
         writeln!(file, "[").unwrap();
         for (i, crash) in crashes.iter().enumerate() {
             writeln!(file, "  {{").unwrap();
             writeln!(file, "    \"thread_id\": {:?},", crash.thread_id).unwrap();
             writeln!(file, "    \"root_index\": {},", crash.root_index).unwrap();
-            writeln!(file, "    \"move_attempted\": \"{}\",", crash.move_attempted).unwrap();
+            writeln!(
+                file,
+                "    \"move_attempted\": \"{}\",",
+                crash.move_attempted
+            )
+            .unwrap();
             writeln!(file, "    \"panic_message\": \"{}\",", crash.panic_message).unwrap();
-            writeln!(file, "    \"timestamp\": {:?}", crash.timestamp.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis()).unwrap();
+            writeln!(
+                file,
+                "    \"timestamp\": {:?}",
+                crash
+                    .timestamp
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis()
+            )
+            .unwrap();
             write!(file, "  }}").unwrap();
             if i < crashes.len() - 1 {
                 writeln!(file, ",").unwrap();
@@ -146,7 +162,7 @@ fn export_crash_logs(crashes: &[CrashInfo]) {
             }
         }
         writeln!(file, "]").unwrap();
-        
+
         eprintln!("Crash logs exported to {}", filename);
     }
 }

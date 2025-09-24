@@ -11,19 +11,44 @@ Building a chess engine from scratch to understand parallel search algorithms an
 ## Project Philosophy
 **Approach:** Build it, measure it, understand the bottlenecks.
 
+## Research Timeline
+| Version | Focus | Key Result | Details |
+|---------|-------|------------|---------|
+| [v0.2.2](releases/v0.2.2-parallel/) | Parallel scaling | 6.28× speedup on 8 cores | [Brief](releases/v0.2.2-parallel/project_brief.pdf) |
+| [v0.2.3](releases/v0.2.3-fault/) | Fault tolerance | 15% overhead, graceful recovery | [Brief](releases/v0.2.3-fault/project_brief.md) |
+| [v0.3.0](releases/v0.3.0/) | **Heterogeneous scheduling** | **13× P vs E core gap** | [Brief](releases/v0.3.0/project_brief.md) |
+
 ## Performance Status
 ![Build Status](https://github.com/Sid4mn/devi-chess-engine/workflows/CI/badge.svg)
 
 ### Parallel Performance Results
 ![Speedup Graph](benchmarks/speedup_hires.png)
 
-## Reproduce Results
+
+```
+M1 Pro (6P+2E) | Depth 7 | 8 threads
+
+Policy          Searches/sec    Relative    
+None (OS)       2.23            100%        
+FastBias        2.29            103%        
+EfficientBias   0.18            8%     <- 13× slower
+Mixed (75% P)   1.08            48%    <- Critical-path bottleneck
+```
+![Heterogeneous Impact](benchmarks/heterogeneous_impact.png)
+
+
+## Quick Start
+
 ```bash
-# Run complete benchmark suite
-cargo run --release -- --benchmark
+# Clone and build
+git clone https://github.com/Sid4mn/devi-chess-engine.git
+cd devi-chess-engine && cargo build --release
 
 # Or use the convenience script
 ./scripts/threads.sh
+
+# Reproduce the 13× heterogeneous scheduling result
+./scripts/heterogeneous.sh
 ```
 
 ### Performance Results
@@ -36,15 +61,27 @@ cargo run --release -- --benchmark
 **Hardware**: Apple M1 Pro (6 performance + 2 efficiency cores), lock-free parallel search via Rayon
 
 ### CLI Usage
-```bash
-# Run benchmark suite
-cargo run --release -- --benchmark
 
+### Heterogeneous Scheduling Experiments
+```bash
+# Test specific core policies
+cargo run --release -- --benchmark --depth 7 --threads 8 --core-policy fast
+cargo run --release -- --benchmark --depth 7 --threads 8 --core-policy efficient
+cargo run --release -- --benchmark --depth 7 --threads 8 --core-policy mixed --mixed-ratio 0.75
+# Run complete heterogeneous analysis
+./scripts/heterogeneous.sh
+```
+
+### Standard Benchmarking
+```bash
 # Single search
 cargo run --release -- --threads 8 --depth 6
 
 # Stability testing  
 cargo run --release -- --soak --threads 8 --depth 6 --runs 100
+
+# Thread scaling analysis
+./scripts/threads.sh
 
 # Perft testing (move generation validation)
 cargo run --release -- --perft --depth 6
@@ -83,6 +120,8 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 |------|-------------|---------|
 | `--threads` | Number of threads to use | 1 |
 | `--depth` | Search depth | 4 |
+| `--core-policy` | Scheduling policy {none\|fast\|efficient\|mixed} | none |
+| `--mixed-ratio` | Ratio of P-cores in mixed mode | 0.75 |
 | `--warmup` | Warmup iterations for benchmarks | 5 |
 | `--runs` | Number of measurement runs | 10 |
 | `--benchmark` | Run full benchmark suite | - |
@@ -145,6 +184,21 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 - [x] **Demonstrable resilience under component failure**
 - [x] **Best-effort results from surviving workers**
 
+**Week 4**: **COMPLETED** - Heterogeneous Core Scheduling
+- [x] QoS-based thread biasing for P/E core scheduling
+- [x] Four scheduling policies (None, FastBias, EfficientBias, Mixed)
+- [x] Discovered 13× performance gap between core types
+- [x] Mixed policy bottleneck analysis (48% vs expected 75%)
+- [x] Automated heterogeneous benchmarking (heterogeneous.sh)
+- [x] Publication-ready visualization showing core impact
+
+## Future Work
+
+1. **Work-stealing scheduler** with separate P/E core pools
+2. **Heterogeneity-aware orchestrator** routing heavy subtrees to P-cores  
+3. **Partitioned transposition tables** - hot entries on P-core caches, cold on E-cores
+4. **PV-split parallelization** with core-aware work distribution (PV nodes -> P-cores)
+
 ### Fault Tolerance Results
 ```json
 {
@@ -158,28 +212,12 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 }
 ```
 
-**Week 4**: v2 Move Ordering & Optimization
-- [ ] MVV-LVA capture ordering
-- [ ] Killer move heuristic
-- [ ] Node reduction metrics
-
-**Week 5**: v3 Iterative Deepening
-- [ ] Time management
-- [ ] Principal variation table
-- [ ] Playable CLI interface
-
-**Week 6**: Cache & Memory Studies
-- [ ] Transposition table experiments
-- [ ] Cache miss analysis with perf
-- [ ] Memory optimization
-
-## Current Status
-**Week 3 - Complete** - Fault tolerance implementation with panic recovery and performance measurement
-
 ## Release History
-- **v0.2.3-fault**: Fault tolerance implementation with panic recovery
-- **v0.2.2**: Parallel search optimization and benchmarking suite
-- **v0.2.1**: Core engine with perft validation
+- **[v0.3.0](releases/v0.3.0/)**: Heterogeneous scheduling with 13× discovery
+- **[v0.2.3-fault](releases/v0.2.3-fault/)**: Fault tolerance with panic recovery
+- **[v0.2.2-parallel](releases/v0.2.2-parallel/)**: Parallel scaling baseline (6.28× speedup)
 
 ## Contributing
 This is primarily a learning project, but suggestions and discussions are welcome!
+
+*Contact: sid4mndev@gmail.com | [GitHub](https://github.com/Sid4mn/devi-chess-engine)*

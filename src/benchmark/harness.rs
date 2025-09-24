@@ -2,7 +2,8 @@ use crate::benchmark::statistics::BenchmarkStats;
 use crate::benchmark::timer::time_execution_millis;
 use crate::board::{Board, BoardRepresentation};
 use crate::scheduling::CorePolicy;
-use crate::search::{parallel_search, search};
+use crate::search::parallel::parallel_search_with_policy;
+use crate::search::{search};
 
 #[derive(Clone)]
 pub struct BenchmarkConfig {
@@ -11,7 +12,7 @@ pub struct BenchmarkConfig {
     pub measurement_runs: usize,
     pub thread_counts: Vec<usize>,
     pub core_policy: CorePolicy,
-    pub mixed_ratio: f32,
+    pub mixed_ratio: f32, // 0.75 = 6P+2E M1 pro ratio
 }
 
 impl Default for BenchmarkConfig {
@@ -34,10 +35,10 @@ pub struct BenchmarkResult {
     pub searches_per_second: f64,
     pub speedup: f64,
     pub efficiency: f64,
-    pub core_policy: CorePolicy
+    pub core_policy: CorePolicy,
 }
 
-pub fn run_benchmark(config: &BenchmarkConfig) -> Vec<BenchmarkResult> {
+pub fn run_benchmark_with_policy(config: &BenchmarkConfig) -> Vec<BenchmarkResult> {
     println!("\n=== UNIFIED CHESS ENGINE BENCHMARK ===");
     println!("Configuration:");
     println!("  Depth: {}", config.depth);
@@ -51,10 +52,15 @@ pub fn run_benchmark(config: &BenchmarkConfig) -> Vec<BenchmarkResult> {
     for &thread_count in &config.thread_counts {
         println!("\n--- Testing {} thread(s) ---", thread_count);
 
-        let stats = benchmark_thread_config(thread_count, config);
+        let stats = benchmark_thread_config_with_policy(
+            thread_count,
+            config,
+            config.core_policy,
+            config.mixed_ratio,
+        );
         let sps = stats.searches_per_second();
 
-        if thread_count == 1 {
+        if thread_count == 1 || (thread_count == config.thread_counts[0]) {
             baseline_sps = sps;
         }
 
@@ -80,6 +86,7 @@ pub fn run_benchmark(config: &BenchmarkConfig) -> Vec<BenchmarkResult> {
             searches_per_second: sps,
             speedup,
             efficiency,
+            core_policy: config.core_policy,
         });
     }
 
@@ -89,14 +96,24 @@ pub fn run_benchmark(config: &BenchmarkConfig) -> Vec<BenchmarkResult> {
     results
 }
 
-fn benchmark_thread_config(thread_count: usize, config: &BenchmarkConfig) -> BenchmarkStats {
+pub fn run_benchmark(config: &BenchmarkConfig) -> Vec<BenchmarkResult> {
+    run_benchmark_with_policy(config)
+}
+
+fn benchmark_thread_config_with_policy(
+    thread_count: usize,
+    config: &BenchmarkConfig,
+    policy: CorePolicy,
+    mixed_ratio: f32,
+) -> BenchmarkStats {
     let mut board = Board::new();
 
     // Warmup phase
     println!("  Warming up...");
     for _ in 0..config.warmup_runs {
         board.setup_starting_position();
-        let _ = execute_search(&mut board, config.depth, thread_count);
+        let _ =
+            execute_search_with_policy(&mut board, config.depth, thread_count, policy, mixed_ratio);
     }
 
     // Measurement phase
@@ -106,8 +123,9 @@ fn benchmark_thread_config(thread_count: usize, config: &BenchmarkConfig) -> Ben
     for run in 1..=config.measurement_runs {
         board.setup_starting_position();
 
-        let (_, duration_ms) =
-            time_execution_millis(|| execute_search(&mut board, config.depth, thread_count));
+        let (_, duration_ms) = time_execution_millis(|| {
+            execute_search_with_policy(&mut board, config.depth, thread_count, policy, mixed_ratio)
+        });
 
         samples.push(duration_ms);
         println!("    Run {:2}: {:.3}ms", run, duration_ms);
@@ -116,32 +134,56 @@ fn benchmark_thread_config(thread_count: usize, config: &BenchmarkConfig) -> Ben
     BenchmarkStats::from_samples(&samples)
 }
 
-fn execute_search(board: &mut Board, depth: u32, thread_count: usize) -> (crate::types::Move, i32) {
+fn benchmark_thread_config(thread_count: usize, config: &BenchmarkConfig) -> BenchmarkStats {
+    benchmark_thread_config_with_policy(thread_count, config, CorePolicy::None, 0.0)
+}
+
+fn execute_search_with_policy(
+    board: &mut Board,
+    depth: u32,
+    thread_count: usize,
+    policy: CorePolicy,
+    mixed_ratio: f32,
+) -> (crate::types::Move, i32) {
     if thread_count == 1 {
         search(board, depth)
     } else {
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(thread_count)
-            .build()
-            .expect("Failed to create thread pool");
-
-        pool.install(|| parallel_search(board, depth))
+        // QoS hints applied here via policy-specific thread pools
+        parallel_search_with_policy(board, depth, policy, thread_count, mixed_ratio)
     }
 }
 
-fn print_summary(results: &[BenchmarkResult]) {
+fn execute_search(board: &mut Board, depth: u32, thread_count: usize) -> (crate::types::Move, i32) {
+    execute_search_with_policy(board, depth, thread_count, CorePolicy::None, 0.0)
+}
+
+fn print_summary_with_policy(results: &[BenchmarkResult]) {
     println!("\n=== PERFORMANCE SUMMARY ===");
-    println!("Threads | Median Time | Searches/sec | Speedup | Efficiency");
-    println!("--------|-------------|--------------|---------|------------");
+    println!("Threads |      Policy     | Median Time | Searches/sec | Speedup | Efficiency");
+    println!("--------|-----------------|-------------|--------------|---------|-----------");
 
     for result in results {
+        let policy_name = match result.core_policy {
+            CorePolicy::None => "None",
+            CorePolicy::FastBias => "FastBias", 
+            CorePolicy::EfficientBias => "EfficientBias",
+            CorePolicy::Mixed => "Mixed",
+        };
         println!(
-            "{:7} | {:10.3}ms | {:12.2} | {:7.2}x | {:9.1}%",
+            "{:7} | {:11} |{:10.3}ms | {:12.2} | {:7.2}x | {:9.1}%",
             result.thread_count,
+            policy_name,
             result.stats.median,
             result.searches_per_second,
             result.speedup,
             result.efficiency
         );
     }
+
+    // TODO: CSV export for plotting
+    // TODO: Statistical significance between policies
+}
+
+fn print_summary(results: &[BenchmarkResult]) {
+    print_summary_with_policy(results);
 }
