@@ -11,7 +11,7 @@ Building a chess engine from scratch to understand parallel search algorithms an
 ## Project Philosophy
 **Approach:** Build it, measure it, understand the bottlenecks.
 
-## Research Timeline
+## Study Timeline
 | Version | Focus | Key Result | Details |
 |---------|-------|------------|---------|
 | [v0.2.2](releases/v0.2.2-parallel/) | Parallel scaling | 6.28× speedup on 8 cores | [Brief](releases/v0.2.2-parallel/project_brief.pdf) |
@@ -187,10 +187,8 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 **Week 4**: **COMPLETED** - Heterogeneous Core Scheduling
 - [x] QoS-based thread biasing for P/E core scheduling
 - [x] Four scheduling policies (None, FastBias, EfficientBias, Mixed)
-- [x] Discovered 13× performance gap between core types
 - [x] Mixed policy bottleneck analysis (48% vs expected 75%)
 - [x] Automated heterogeneous benchmarking (heterogeneous.sh)
-- [x] Publication-ready visualization showing core impact
 
 ## Future Work
 
