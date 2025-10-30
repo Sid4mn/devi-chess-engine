@@ -145,7 +145,7 @@ Foundation & Correctness **COMPLETED**
   - [x] Queens (rook + bishop combined)
 - [x] Trait-based architecture
 - [x] Legal move filtering with check detection
-- [x] Perft validation suite (perfect through depth 7)
+- [x] Perft validation suite (verified through depth 7)
 - [x] **Alpha-beta search implementation**
 - [x] **Material evaluation function**
 - [x] **CI/CD pipeline with regression tests**
@@ -181,7 +181,7 @@ Fault Tolerance & Distributed Systems **COMPLETED**
 - [x] Thread-safe crash logging with JSON export
 - [x] Performance overhead measurement (<12% impact)
 - [x] Automated fault tolerance testing (run_fault.sh)
-- [x] **Demonstrable resilience under component failure**
+- [x] **Graceful degradation under worker thread failure**
 - [x] **Best-effort results from surviving workers**
 
 Heterogeneous Core Scheduling **COMPLETED**
@@ -211,9 +211,9 @@ Heterogeneous Core Scheduling **COMPLETED**
 ```
 
 ## Release History
-- **[v0.3.0](releases/v0.3.0/)**: Heterogeneous scheduling with 13× discovery
+- **[v0.3.0](releases/v0.3.0/)**: Add Heterogeneous core scheduling policies
 - **[v0.2.3-fault](releases/v0.2.3-fault/)**: Fault tolerance with panic recovery
-- **[v0.2.2-parallel](releases/v0.2.2-parallel/)**: Parallel scaling baseline (6.28× speedup)
+- **[v0.2.2-parallel](releases/v0.2.2-parallel/)**: Parallel scaling baseline
 
 ## Contributing
 This is primarily a learning project, but suggestions and discussions are welcome!
