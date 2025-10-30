@@ -1,0 +1,129 @@
+devi Chess Engine v0.3.0
+------------------------
+Starting position evaluation: 0
+Core scheduling policy: EfficientBias
+
+=== UNIFIED CHESS ENGINE BENCHMARK ===
+Configuration:
+  Depth: 6
+  Warmup runs: 10
+  Measurement runs: 100
+  Thread configurations: [8]
+
+--- Testing 8 thread(s) ---
+  Warming up...
+  Measuring...
+    Run  1: 555.963ms
+    Run  2: 775.776ms
+    Run  3: 628.101ms
+    Run  4: 529.992ms
+    Run  5: 562.749ms
+    Run  6: 662.589ms
+    Run  7: 721.609ms
+    Run  8: 609.637ms
+    Run  9: 565.783ms
+    Run 10: 752.860ms
+    Run 11: 839.472ms
+    Run 12: 1281.517ms
+    Run 13: 682.872ms
+    Run 14: 648.624ms
+    Run 15: 667.456ms
+    Run 16: 589.628ms
+    Run 17: 573.129ms
+    Run 18: 667.476ms
+    Run 19: 582.810ms
+    Run 20: 654.644ms
+    Run 21: 606.762ms
+    Run 22: 577.232ms
+    Run 23: 650.742ms
+    Run 24: 705.525ms
+    Run 25: 1003.942ms
+    Run 26: 623.960ms
+    Run 27: 562.007ms
+    Run 28: 571.146ms
+    Run 29: 785.388ms
+    Run 30: 586.443ms
+    Run 31: 597.512ms
+    Run 32: 527.234ms
+    Run 33: 589.874ms
+    Run 34: 568.056ms
+    Run 35: 595.970ms
+    Run 36: 547.898ms
+    Run 37: 571.031ms
+    Run 38: 561.281ms
+    Run 39: 667.990ms
+    Run 40: 613.952ms
+    Run 41: 626.114ms
+    Run 42: 603.588ms
+    Run 43: 609.776ms
+    Run 44: 534.375ms
+    Run 45: 610.080ms
+    Run 46: 611.062ms
+    Run 47: 926.385ms
+    Run 48: 790.427ms
+    Run 49: 607.601ms
+    Run 50: 589.789ms
+    Run 51: 589.415ms
+    Run 52: 560.604ms
+    Run 53: 553.782ms
+    Run 54: 554.171ms
+    Run 55: 574.225ms
+    Run 56: 580.050ms
+    Run 57: 554.541ms
+    Run 58: 562.284ms
+    Run 59: 562.318ms
+    Run 60: 603.997ms
+    Run 61: 566.283ms
+    Run 62: 526.114ms
+    Run 63: 609.160ms
+    Run 64: 632.929ms
+    Run 65: 729.113ms
+    Run 66: 1558.544ms
+    Run 67: 802.259ms
+    Run 68: 657.506ms
+    Run 69: 591.362ms
+    Run 70: 670.570ms
+    Run 71: 677.190ms
+    Run 72: 751.486ms
+    Run 73: 1223.479ms
+    Run 74: 796.197ms
+    Run 75: 1159.115ms
+    Run 76: 624.142ms
+    Run 77: 613.233ms
+    Run 78: 682.714ms
+    Run 79: 732.753ms
+    Run 80: 598.294ms
+    Run 81: 638.567ms
+    Run 82: 924.395ms
+    Run 83: 565.871ms
+    Run 84: 581.647ms
+    Run 85: 536.251ms
+    Run 86: 555.809ms
+    Run 87: 630.278ms
+    Run 88: 576.370ms
+    Run 89: 585.074ms
+    Run 90: 535.787ms
+    Run 91: 595.649ms
+    Run 92: 541.805ms
+    Run 93: 550.298ms
+    Run 94: 600.835ms
+    Run 95: 1017.151ms
+    Run 96: 594.028ms
+    Run 97: 594.461ms
+    Run 98: 539.435ms
+    Run 99: 570.694ms
+    Run 100: 587.172ms
+  Median: 602.212ms (std dev: 166.558ms)
+  Range: 526.114ms - 1558.544ms
+  Searches/second: 1.66
+  Speedup: 1.00x
+  Efficiency: 12.5%
+
+=== BENCHMARK COMPLETE ===
+
+=== PERFORMANCE SUMMARY ===
+Threads |      Policy     | Median Time | Searches/sec | Speedup | Efficiency
+--------|-----------------|-------------|--------------|---------|-----------
+      8 | EfficientBias |   602.212ms |         1.66 |    1.00x |      12.5%
+
+Benchmark results exported to benchmarks/speedup_none.csv

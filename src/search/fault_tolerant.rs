@@ -18,11 +18,7 @@ struct CrashInfo {
     timestamp: SystemTime,
 }
 
-pub fn search_root_fault(
-    board: &mut Board,
-    depth: u32,
-    inject_panic_at: Option<usize>,
-) -> (Move, i32) {
+pub fn search_root_fault(board: &mut Board, depth: u32, inject_panic_at: Option<usize>) -> (Move, i32) {
     let current_color = board.to_move();
     let moves = generate_legal_moves(board, current_color);
 

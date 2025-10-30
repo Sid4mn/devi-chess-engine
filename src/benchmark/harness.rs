@@ -52,12 +52,7 @@ pub fn run_benchmark_with_policy(config: &BenchmarkConfig) -> Vec<BenchmarkResul
     for &thread_count in &config.thread_counts {
         println!("\n--- Testing {} thread(s) ---", thread_count);
 
-        let stats = benchmark_thread_config_with_policy(
-            thread_count,
-            config,
-            config.core_policy,
-            config.mixed_ratio,
-        );
+        let stats = benchmark_thread_config_with_policy(thread_count, config, config.core_policy, config.mixed_ratio);
         let sps = stats.searches_per_second();
 
         if thread_count == 1 || (thread_count == config.thread_counts[0]) {
@@ -71,15 +66,11 @@ pub fn run_benchmark_with_policy(config: &BenchmarkConfig) -> Vec<BenchmarkResul
         };
         let efficiency = speedup / thread_count as f64 * 100.0;
 
-        println!(
-            "  Median: {:.3}ms (std dev: {:.3}ms)",
-            stats.median, stats.std_dev
-        );
+        println!("  Median: {:.3}ms (std dev: {:.3}ms)", stats.median, stats.std_dev);
         println!("  Range: {:.3}ms - {:.3}ms", stats.min, stats.max);
         println!("  Searches/second: {:.2}", sps);
         println!("  Speedup: {:.2}x", speedup);
         println!("  Efficiency: {:.1}%", efficiency);
-
         results.push(BenchmarkResult {
             thread_count,
             stats,

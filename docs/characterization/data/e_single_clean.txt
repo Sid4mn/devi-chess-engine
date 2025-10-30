@@ -1,0 +1,79 @@
+devi Chess Engine v0.3.0
+------------------------
+Starting position evaluation: 0
+Core scheduling policy: EfficientBias
+
+=== UNIFIED CHESS ENGINE BENCHMARK ===
+Configuration:
+  Depth: 6
+  Warmup runs: 10
+  Measurement runs: 50
+  Thread configurations: [8]
+
+--- Testing 8 thread(s) ---
+  Warming up...
+  Measuring...
+    Run  1: 540.465ms
+    Run  2: 745.640ms
+    Run  3: 596.485ms
+    Run  4: 633.121ms
+    Run  5: 612.236ms
+    Run  6: 577.905ms
+    Run  7: 594.693ms
+    Run  8: 610.195ms
+    Run  9: 577.814ms
+    Run 10: 630.017ms
+    Run 11: 697.377ms
+    Run 12: 621.584ms
+    Run 13: 624.997ms
+    Run 14: 636.303ms
+    Run 15: 589.111ms
+    Run 16: 576.597ms
+    Run 17: 574.780ms
+    Run 18: 666.806ms
+    Run 19: 1047.936ms
+    Run 20: 1167.848ms
+    Run 21: 714.863ms
+    Run 22: 585.456ms
+    Run 23: 606.206ms
+    Run 24: 607.875ms
+    Run 25: 570.862ms
+    Run 26: 614.202ms
+    Run 27: 721.720ms
+    Run 28: 584.820ms
+    Run 29: 581.840ms
+    Run 30: 562.033ms
+    Run 31: 619.524ms
+    Run 32: 562.318ms
+    Run 33: 583.418ms
+    Run 34: 881.836ms
+    Run 35: 574.565ms
+    Run 36: 611.501ms
+    Run 37: 640.977ms
+    Run 38: 615.436ms
+    Run 39: 733.493ms
+    Run 40: 652.733ms
+    Run 41: 626.277ms
+    Run 42: 628.569ms
+    Run 43: 613.584ms
+    Run 44: 658.676ms
+    Run 45: 581.526ms
+    Run 46: 766.062ms
+    Run 47: 930.543ms
+    Run 48: 919.922ms
+    Run 49: 1161.573ms
+    Run 50: 809.049ms
+  Median: 617.480ms (std dev: 144.444ms)
+  Range: 540.465ms - 1167.848ms
+  Searches/second: 1.62
+  Speedup: 1.00x
+  Efficiency: 12.5%
+
+=== BENCHMARK COMPLETE ===
+
+=== PERFORMANCE SUMMARY ===
+Threads |      Policy     | Median Time | Searches/sec | Speedup | Efficiency
+--------|-----------------|-------------|--------------|---------|-----------
+      8 | EfficientBias |   617.480ms |         1.62 |    1.00x |      12.5%
+
+Benchmark results exported to benchmarks/speedup_none.csv

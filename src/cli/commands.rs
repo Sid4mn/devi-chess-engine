@@ -133,12 +133,7 @@ pub fn run_fault_analysis(args: &Cli) {
     writeln!(file, "{{").unwrap();
     writeln!(file, "  \"baseline\": {{").unwrap();
     writeln!(file, "    \"score\": {},", baseline_score).unwrap();
-    writeln!(
-        file,
-        "    \"time_ms\": {:.3}",
-        baseline_time.as_micros() as f64 / 1000.0
-    )
-    .unwrap();
+    writeln!(file,"    \"time_ms\": {:.3}",baseline_time.as_micros() as f64 / 1000.0).unwrap();
     writeln!(file, "  }},").unwrap();
     writeln!(file, "  \"fault_tests\": [").unwrap();
 
@@ -146,12 +141,7 @@ pub fn run_fault_analysis(args: &Cli) {
         writeln!(file, "    {{").unwrap();
         writeln!(file, "      \"fault_position\": {},", pos).unwrap();
         writeln!(file, "      \"score\": {},", score).unwrap();
-        writeln!(
-            file,
-            "      \"time_ms\": {:.3},",
-            time.as_micros() as f64 / 1000.0
-        )
-        .unwrap();
+        writeln!(file, "      \"time_ms\": {:.3},",time.as_micros() as f64 / 1000.0).unwrap();
         writeln!(file, "      \"overhead_percent\": {:.1}", overhead).unwrap();
         write!(file, "    }}").unwrap();
         if i < fault_results.len() - 1 {

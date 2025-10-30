@@ -132,9 +132,9 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 | `--inject-panic` | Inject panic at specific move index | - |
 | `--dump-crashes` | Enable crash logging and analysis | false |
 
-## Weekly Deliverables
+## Deliverables
 
-**Week 1**: **COMPLETED** - Foundation & Correctness
+Foundation & Correctness **COMPLETED** 
 - [x] Board representation
 - [x] All piece move generation
   - [x] Pawns (forward, double, captures, en passant)
@@ -164,7 +164,7 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 | 7     | 3,195,901,860 |   ✅   |
 
 
-**Week 2**: **COMPLETED** - Parallel Scalability
+Parallel Scalability **COMPLETED**
 - [x] Root parallelization with Rayon
 - [x] Multi-thread benchmarking (1/2/4/8 threads)
 - [x] CLI with clap
@@ -175,7 +175,7 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 - [x] **Automated reproduction scripts (threads.sh, soak.sh)**
 - [x] **Speedup achievement on 8 threads**
 
-**Week 3**: **COMPLETED** - Fault Tolerance & Distributed Systems
+Fault Tolerance & Distributed Systems **COMPLETED**
 - [x] Fault injection mechanism via CLI flags
 - [x] Panic recovery with graceful degradation
 - [x] Thread-safe crash logging with JSON export
@@ -184,7 +184,7 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 - [x] **Demonstrable resilience under component failure**
 - [x] **Best-effort results from surviving workers**
 
-**Week 4**: **COMPLETED** - Heterogeneous Core Scheduling
+Heterogeneous Core Scheduling **COMPLETED**
 - [x] QoS-based thread biasing for P/E core scheduling
 - [x] Four scheduling policies (None, FastBias, EfficientBias, Mixed)
 - [x] Mixed policy bottleneck analysis (48% vs expected 75%)

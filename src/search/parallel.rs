@@ -12,13 +12,7 @@ pub fn parallel_search(board: &mut Board, depth: u32) -> (Move, i32) {
 }
 
 /// Root-split parallel search with core policy support
-pub fn parallel_search_with_policy(
-    board: &mut Board,
-    depth: u32,
-    policy: CorePolicy,
-    threads: usize,
-    mixed_ratio: f32,
-) -> (Move, i32) {
+pub fn parallel_search_with_policy(board: &mut Board, depth: u32, policy: CorePolicy, threads: usize, mixed_ratio: f32) -> (Move, i32) {
     let current_color = board.to_move();
     let moves = generate_legal_moves(board, current_color);
 
@@ -40,13 +34,7 @@ pub fn parallel_search_with_policy(
                 let mut local_board = board.clone();
                 let undo = local_board.make_move(mv);
 
-                let score = -alphabeta(
-                    &mut local_board,
-                    depth.saturating_sub(1),
-                    i32::MIN + 1,
-                    i32::MAX - 1,
-                    false,
-                );
+                let score = -alphabeta(&mut local_board, depth.saturating_sub(1), i32::MIN + 1, i32::MAX - 1,false);
                 local_board.unmake_move(mv, undo);
 
                 (*mv, score)
