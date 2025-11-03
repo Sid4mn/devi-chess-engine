@@ -3,6 +3,27 @@ use clap::Parser;
 
 #[derive(Parser)]
 pub struct Cli {
+    // EXECUTION
+    #[arg(long)]
+    pub benchmark: bool,
+
+    #[arg(long, help = "Run full thread count sweep for benchmarking")]
+    pub benchmark_sweep: bool,
+
+    #[arg(long)]
+    pub soak: bool,
+
+    // ENGINE DEBUG
+    #[arg(long)]
+    pub perft: bool,
+
+    #[arg(long, help = "Use parallel perf computation", default_value_t = false)]
+    pub parallel_perft: bool,
+
+    #[arg(long)]
+    pub perft_divide: bool,
+
+    // CORE PARAMETERS
     #[arg(long, default_value_t = 1)]
     pub threads: usize,
 
@@ -15,40 +36,19 @@ pub struct Cli {
     #[arg(long, default_value_t = 10)]
     pub runs: usize,
 
-    #[arg(long)]
-    pub benchmark: bool,
+    // HETEROGENEOUS SCHEDULING
+    #[arg(long, value_enum, help = "Core scheduling policy for heterogeneous architectures")]
+    pub core_policy: Option<CorePolicy>,
 
-    #[arg(long)]
-    pub soak: bool,
+    #[arg(long, default_value_t = 0.80, help = "Ratio of fast cores in mixed mode (0.0-1.0)")]
+    pub mixed_ratio: f32,
 
-    #[arg(long)]
-    pub perft: bool,
-
-    #[arg(long, help = "Use parallel perf computation", default_value_t = false)]
-    pub parallel_perft: bool,
-
-    #[arg(long)]
-    pub perft_divide: bool,
-
+    // FAULT TOLERANCE
     #[arg(long)]
     pub inject_panic: Option<usize>,
 
     #[arg(long)]
     pub dump_crashes: bool,
-
-    #[arg(
-        long,
-        value_enum,
-        help = "Core scheduling policy for heterogeneous architectures"
-    )]
-    pub core_policy: Option<CorePolicy>,
-
-    #[arg(
-        long,
-        default_value_t = 0.75,
-        help = "Ratio of fast cores in mixed mode (0.0-1.0)"
-    )]
-    pub mixed_ratio: f32,
 }
 
 pub fn parse_args() -> Cli {
@@ -86,6 +86,14 @@ mod tests {
         assert_eq!(args.soak, true);
         assert_eq!(args.threads, 8);
         assert_eq!(args.runs, 100);
+    }
+
+    #[test]
+    fn test_boolean_flags() {
+        let args = parse_test_args(&["devi", "--benchmark-sweep", "--soak", "--benchmark"]);
+        assert_eq!(args.soak, true);
+        assert_eq!(args.benchmark, true);
+        assert_eq!(args.benchmark_sweep, true);
     }
 
     #[test]

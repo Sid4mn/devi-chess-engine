@@ -29,14 +29,13 @@ impl BenchmarkStats {
 
         let mean = samples.iter().sum::<f64>() / samples.len() as f64;
 
-        let median = if sorted.len() % 2 == 0 {
+        let median = if sorted.len() % 2 == 0 { // Even - avg of two middle values
             (sorted[sorted.len() / 2 - 1] + sorted[sorted.len() / 2]) / 2.0
         } else {
-            sorted[sorted.len() / 2]
+            sorted[sorted.len() / 2] // Odd
         };
 
-        let variance =
-            samples.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / samples.len() as f64;
+        let variance = samples.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / samples.len() as f64;
         let std_dev = variance.sqrt();
 
         let min = sorted[0];

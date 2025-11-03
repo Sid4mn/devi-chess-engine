@@ -5,13 +5,19 @@
 set -euo pipefail
 
 BINARY=./target/release/devi
-DEPTH=4
+DEPTH=7
 OUTPUT_DIR=benchmarks
 CSV_FILE=benchmarks/speedup.csv
 PNG_FILE=benchmarks/speedup.png
 
 echo "devi Chess Engine - Threads Test Automation"
 echo "========================================="
+
+echo "Hardware Configuration:"
+echo "  Total cores: $(sysctl -n hw.physicalcpu)"
+echo "  P-cores: $(sysctl -n hw.perflevel0.physicalcpu)"
+echo "  E-cores: $(sysctl -n hw.perflevel1.physicalcpu)"
+echo ""
 
 # Ensure prerequisites
 if [[ ! -f "$BINARY" ]]; then
@@ -22,10 +28,10 @@ fi
 # Ensure output directory exists
 mkdir -p $OUTPUT_DIR
 
-echo "Running benchmark at depth $DEPTH for thread configurations [1, 2, 4, 8]..."
+echo "Running benchmark at depth $DEPTH for threads [1, 2, 4, 6, 8, 10]..."
 
 # Execute benchmark (this calls export_benchmark_csv internally)
-"$BINARY" --benchmark --depth "$DEPTH"
+"$BINARY" --benchmark --depth "$DEPTH" --threads 10
 
 # Validate CSV was created and is non-empty
 if [[ -f "$CSV_FILE" && -s "$CSV_FILE" ]]; then

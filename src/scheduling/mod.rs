@@ -102,5 +102,5 @@ pub fn create_pool_for_policy(policy: CorePolicy, threads: usize, mixed_ratio: f
 }
 
 pub fn create_pool_for_policy_simple(policy: CorePolicy, threads: usize) -> rayon::ThreadPool {
-    create_pool_for_policy(policy, threads, 0.75) // Default 75% fast cores
+    create_pool_for_policy(policy, threads, 0.80) // Default 80% fast cores
 }

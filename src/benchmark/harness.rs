@@ -12,18 +12,18 @@ pub struct BenchmarkConfig {
     pub measurement_runs: usize,
     pub thread_counts: Vec<usize>,
     pub core_policy: CorePolicy,
-    pub mixed_ratio: f32, // 0.75 = 6P+2E M1 pro ratio
+    pub mixed_ratio: f32, // 0.80 = 8P+2E M1 pro ratio
 }
 
 impl Default for BenchmarkConfig {
     fn default() -> Self {
         BenchmarkConfig {
-            depth: 4,
+            depth: 7,
             warmup_runs: 5,
             measurement_runs: 10,
-            thread_counts: vec![1, 2, 4, 8],
+            thread_counts: vec![1, 2, 4, 6, 8, 10],
             core_policy: CorePolicy::None,
-            mixed_ratio: 0.75,
+            mixed_ratio: 0.80,
         }
     }
 }
@@ -91,12 +91,7 @@ pub fn run_benchmark(config: &BenchmarkConfig) -> Vec<BenchmarkResult> {
     run_benchmark_with_policy(config)
 }
 
-fn benchmark_thread_config_with_policy(
-    thread_count: usize,
-    config: &BenchmarkConfig,
-    policy: CorePolicy,
-    mixed_ratio: f32,
-) -> BenchmarkStats {
+fn benchmark_thread_config_with_policy(thread_count: usize, config: &BenchmarkConfig, policy: CorePolicy, mixed_ratio: f32) -> BenchmarkStats {
     let mut board = Board::new();
 
     // Warmup phase
@@ -129,13 +124,7 @@ fn benchmark_thread_config(thread_count: usize, config: &BenchmarkConfig) -> Ben
     benchmark_thread_config_with_policy(thread_count, config, CorePolicy::None, 0.0)
 }
 
-fn execute_search_with_policy(
-    board: &mut Board,
-    depth: u32,
-    thread_count: usize,
-    policy: CorePolicy,
-    mixed_ratio: f32,
-) -> (crate::types::Move, i32) {
+fn execute_search_with_policy(board: &mut Board,depth: u32,thread_count: usize,policy: CorePolicy,mixed_ratio: f32) -> (crate::types::Move, i32) {
     if thread_count == 1 {
         search(board, depth)
     } else {

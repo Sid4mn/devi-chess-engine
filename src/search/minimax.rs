@@ -75,7 +75,7 @@ pub fn alphabeta(board: &mut Board, depth: u32, mut alpha: i32, mut beta: i32, m
     if maximizing_player {
         for mv in moves {
             let undo = board.make_move(&mv);
-            let eval = alphabeta(board, depth - 1, alpha, beta, false);
+            let eval = alphabeta(board, depth - 1, alpha, beta, false); // false = other player's turn
             board.unmake_move(&mv, undo);
             alpha = alpha.max(eval);
             if beta <= alpha {
@@ -86,7 +86,7 @@ pub fn alphabeta(board: &mut Board, depth: u32, mut alpha: i32, mut beta: i32, m
     } else {
         for mv in moves {
             let undo = board.make_move(&mv);
-            let eval = alphabeta(board, depth - 1, alpha, beta, true);
+            let eval = alphabeta(board, depth - 1, alpha, beta, true); // true = other player's turn
             board.unmake_move(&mv, undo);
             beta = beta.min(eval);
             if beta <= alpha {

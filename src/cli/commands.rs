@@ -19,11 +19,19 @@ pub fn run_full_benchmark(args: &Cli) {
     let policy = args.core_policy.unwrap_or(CorePolicy::None);
     let mixed_ratio = args.mixed_ratio;
 
+    let threads = {
+        if args.benchmark_sweep {
+            vec![1, 2, 4, 6, 8, 10]
+        } else {
+            vec![args.threads]
+        }
+    };
+    
     let config = BenchmarkConfig {
         depth: args.depth,
         warmup_runs: args.warmup,
         measurement_runs: args.runs,
-        thread_counts: vec![args.threads],
+        thread_counts: threads,
         core_policy: policy,
         mixed_ratio: mixed_ratio,
     };
@@ -222,16 +230,7 @@ pub fn run_soak_test(args: &Cli) {
     }
 }
 
-fn write_soak_files(
-    samples: &[f64],
-    threads: usize,
-    depth: u32,
-    runs: usize,
-    min: f64,
-    median: f64,
-    p95: f64,
-    max: f64,
-) {
+fn write_soak_files(samples: &[f64],threads: usize,depth: u32,runs: usize,min: f64,median: f64,p95: f64,max: f64) {
     // Ensure docs directory exists
     if let Err(e) = create_dir_all("docs") {
         eprintln!("Warning: Failed to create docs directory: {}", e);
@@ -263,15 +262,7 @@ fn write_raw_samples(samples: &[f64]) -> std::io::Result<()> {
     Ok(())
 }
 
-fn write_soak_summary(
-    threads: usize,
-    depth: u32,
-    runs: usize,
-    min: f64,
-    median: f64,
-    p95: f64,
-    max: f64,
-) -> std::io::Result<()> {
+fn write_soak_summary(threads: usize,depth: u32,runs: usize,min: f64,median: f64,p95: f64,max: f64) -> std::io::Result<()> {
     let file = File::create("docs/soak_summary.txt")?;
     let mut writer = BufWriter::new(file);
 
@@ -366,21 +357,30 @@ fn format_with_commas(n: u64) -> String {
     result.chars().rev().collect()
 }
 
-pub fn export_benchmark_csv_with_policy(results: &[BenchmarkResult], policy: CorePolicy) {
-    let csv_path = format!("benchmarks/speedup_{:?}.csv", policy).to_lowercase();
-    let mut file = File::create(&csv_path).expect("Unable to create CSV file");
+pub fn export_benchmark_csv_with_policy(results: &[BenchmarkResult]) {
+    /* Check if csv file exists, if yes append results else add */
+    let csv_path = "benchmarks/speedup.csv";
 
-    writeln!(
-        file,
-        "threads,policy,median_ms,searches_per_sec,speedup,efficiency"
-    )
-    .unwrap();
+    let file_exists = std::path::Path::new(csv_path).exists();
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(csv_path)
+        .expect("Unable to open CSV file.");
+
+    if !file_exists{
+        writeln!(
+            file,
+            "threads,policy,median_ms,searches_per_sec,speedup,efficiency"
+        ).unwrap();
+    }
+
     for result in results {
         writeln!(
             file,
             "{},{:?},{:.3},{:.2},{:.2},{:.1}",
             result.thread_count,
-            policy,
+            result.core_policy,
             result.stats.median,
             result.searches_per_second,
             result.speedup,
@@ -393,5 +393,5 @@ pub fn export_benchmark_csv_with_policy(results: &[BenchmarkResult], policy: Cor
 }
 
 pub fn export_benchmark_csv(results: &[BenchmarkResult]) {
-    export_benchmark_csv_with_policy(results, CorePolicy::None);
+    export_benchmark_csv_with_policy(results);
 }

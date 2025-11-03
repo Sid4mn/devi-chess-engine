@@ -5,7 +5,7 @@
 set -euo pipefail
 
 BINARY=./target/release/devi
-THREADS=8
+THREADS=10
 DEPTH=4
 RUNS=100
 
