@@ -46,7 +46,7 @@ pub fn run_full_benchmark(args: &Cli) {
     }
 
     let results = run_benchmark(&config);
-    export_benchmark_csv(&results);
+    export_benchmark_csv(&results, args.csv_output.as_deref());
 }
 
 pub fn run_single_search(args: &Cli) {
@@ -357,16 +357,38 @@ fn format_with_commas(n: u64) -> String {
     result.chars().rev().collect()
 }
 
-pub fn export_benchmark_csv_with_policy(results: &[BenchmarkResult]) {
+pub fn export_benchmark_csv_with_policy(results: &[BenchmarkResult], custom_path: Option<&str>) {
     /* Check if csv file exists, if yes append results else add */
-    let csv_path = "benchmarks/speedup.csv";
+    let csv_path = custom_path.unwrap_or("benchmarks/speedup.csv");
+
+    if let Some(parent) = std::path::Path::new(csv_path).parent() {
+        if !parent.exists() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                eprintln!("Warning: Failed to create directory {}: {}", parent.display(), e);
+                // Fall back to default if we can't create the directory
+                return export_benchmark_csv_with_policy(results, None);
+            }
+        }
+    }
 
     let file_exists = std::path::Path::new(csv_path).exists();
-    let mut file = std::fs::OpenOptions::new()
+
+    let file = match std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(csv_path)
-        .expect("Unable to open CSV file.");
+        .open(csv_path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("Error: Failed to open {}: {}", csv_path, e);
+            if custom_path.is_some() {
+                eprintln!("Falling back to default path");
+                return export_benchmark_csv_with_policy(results, None);
+            }
+            panic!("Cannot write benchmark results");
+        }
+    };
+    
+    let mut file = file;
 
     if !file_exists{
         writeln!(
@@ -392,6 +414,6 @@ pub fn export_benchmark_csv_with_policy(results: &[BenchmarkResult]) {
     println!("\nBenchmark results exported to {}", csv_path);
 }
 
-pub fn export_benchmark_csv(results: &[BenchmarkResult]) {
-    export_benchmark_csv_with_policy(results);
+pub fn export_benchmark_csv(results: &[BenchmarkResult], custom_path: Option<&str>) {
+    export_benchmark_csv_with_policy(results, custom_path);
 }

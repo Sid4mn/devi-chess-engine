@@ -14,25 +14,29 @@ Building a chess engine from scratch to understand parallel search algorithms an
 ## Study Timeline
 | Version | Focus | Key Result | Details |
 |---------|-------|------------|---------|
-| [v0.2.2](releases/v0.2.2-parallel/) | Parallel scaling | 6.28× speedup on 8 cores | [Brief](releases/v0.2.2-parallel/project_brief.pdf) |
 | [v0.2.3](releases/v0.2.3-fault/) | Fault tolerance | 15% overhead, graceful recovery | [Brief](releases/v0.2.3-fault/project_brief.md) |
 | [v0.3.0](releases/v0.3.0/) | **Heterogeneous scheduling** | **13× P vs E core gap** | [Brief](releases/v0.3.0/project_brief.md) |
+| [v0.4.0](releases/v0.4.0/) | **Scaling laws (Amdahl vs Gustafson)** | **48% serial fraction reduction** | [Brief](releases/v0.4.0/scaling_analysis.md) |
 
 ## Performance Status
 ![Build Status](https://github.com/Sid4mn/devi-chess-engine/workflows/CI/badge.svg)
 
-### Parallel Performance Results
-![Speedup Graph](benchmarks/speedup_hires.png)
+### Parallel Scaling Results (v0.4.0)
+**Key Finding**: Larger problems scale better - increasing search depth from 4 to 7 reduces serial fraction by 48%, enabling 6.73× speedup (vs 4.56×) on 10 cores.
+
+![Speedup Comparison](benchmarks/scaling_analysis/speedup_comparison.png)
+![Efficiency Comparison](benchmarks/scaling_analysis/efficiency_comparison.png)
+
 
 
 ```
-M1 Pro (6P+2E) | Depth 7 | 8 threads
+M1 Pro | Depth comparison
 
 Policy          Searches/sec    Relative    
 None (OS)       2.23            100%        
 FastBias        2.29            103%        
 EfficientBias   0.18            8%     <- 13× slower
-Mixed (75% P)   1.08            48%    <- Critical-path bottleneck
+Mixed           1.08            48%    <- Critical-path bottleneck
 ```
 ![Heterogeneous Impact](benchmarks/heterogeneous_impact.png)
 
@@ -44,38 +48,45 @@ Mixed (75% P)   1.08            48%    <- Critical-path bottleneck
 git clone https://github.com/Sid4mn/devi-chess-engine.git
 cd devi-chess-engine && cargo build --release
 
-# Or use the convenience script
-./scripts/threads.sh
+# Reproduce scaling analysis
+./scripts/analysis/multi_depth_scaling.sh
 
-# Reproduce the 13× heterogeneous scheduling result
-./scripts/heterogeneous.sh
+# Or run specific benchmarks
+./target/release/devi --benchmark --benchmark-sweep --depth 7
 ```
 
 ### Performance Results
-- **Baseline**: 165.65 searches/second (single thread)
-- **Peak**: 4.77× speedup on 8 threads (Apple M1 Pro, 59.6% efficiency)
-- **Sweet spot**: 3.17× speedup on 4 threads (79.2% efficiency)
-- **Stability**: Median 1.414ms over 100 iterations (soak test validation)
-- **Methodology**: 5 warmup + 10 measurement runs, median timing with outlier detection
+- **Single thread baseline**: 0.37 searches/sec (depth 7)
+- **Peak speedup**: 6.73× on 10 threads (depth 7, 67.3% efficiency)
+- **Sweet spot**: 6.23× on 8 P-cores (depth 7, 77.8% efficiency)
+- **Methodology**: 5 warmup + 10 measurement runs, median timing with std dev reporting
 
-**Hardware**: Apple M1 Pro (6 performance + 2 efficiency cores), lock-free parallel search via Rayon
+**Hardware**: Apple M1 Pro (8 performance + 2 efficiency cores), lock-free parallel search via Rayon
 
 ### CLI Usage
 
-### Heterogeneous Scheduling Experiments
+#### Scaling Analysis
+```bash
+# Compare Amdahl (depth 4) vs Gustafson (depth 7)
+./scripts/analysis/multi_depth_scaling.sh
+
+# Individual depth testing
+cargo run --release -- --benchmark --benchmark-sweep --depth 4
+cargo run --release -- --benchmark --benchmark-sweep --depth 7
+```
+
+#### Heterogeneous Scheduling
 ```bash
 # Test specific core policies
 cargo run --release -- --benchmark --depth 7 --threads 8 --core-policy fast
 cargo run --release -- --benchmark --depth 7 --threads 8 --core-policy efficient
 cargo run --release -- --benchmark --depth 7 --threads 8 --core-policy mixed --mixed-ratio 0.75
-# Run complete heterogeneous analysis
-./scripts/heterogeneous.sh
 ```
 
 ### Standard Benchmarking
 ```bash
-# Single search
-cargo run --release -- --threads 8 --depth 6
+# Thread sweep with CSV output
+cargo run --release -- --benchmark --benchmark-sweep --csv-output results.csv
 
 # Stability testing  
 cargo run --release -- --soak --threads 8 --depth 6 --runs 100
@@ -87,7 +98,7 @@ cargo run --release -- --soak --threads 8 --depth 6 --runs 100
 cargo run --release -- --perft --depth 6
 
 # Parallel perft testing
-cargo run --release -- --perft --parallel-perft --threads 8 --depth 6
+cargo run --release -- --perft --parallel-perft --threads 10 --depth 6
 
 # Perft divide (debug individual moves)
 cargo run --release -- --perft --perft-divide --depth 5
@@ -120,8 +131,10 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 |------|-------------|---------|
 | `--threads` | Number of threads to use | 1 |
 | `--depth` | Search depth | 4 |
+| `--benchmark-sweep` | Test all thread counts [1,2,4,6,8,10] | - |
 | `--core-policy` | Scheduling policy {none\|fast\|efficient\|mixed} | none |
-| `--mixed-ratio` | Ratio of P-cores in mixed mode | 0.75 |
+| `--mixed-ratio` | Ratio of P-cores in mixed mode | 0.80 |
+| `--csv-output` | Export results to CSV | - |
 | `--warmup` | Warmup iterations for benchmarks | 5 |
 | `--runs` | Number of measurement runs | 10 |
 | `--benchmark` | Run full benchmark suite | - |
@@ -166,14 +179,13 @@ Foundation & Correctness **COMPLETED**
 
 Parallel Scalability **COMPLETED**
 - [x] Root parallelization with Rayon
-- [x] Multi-thread benchmarking (1/2/4/8 threads)
+- [x] Multi-thread benchmarking (1/2/4/8/10 threads)
 - [x] CLI with clap
 - [x] Comprehensive benchmark suite (--benchmark flag)
 - [x] Soak testing for stability validation (--soak flag)
 - [x] Statistical analysis with warmup/outlier detection
 - [x] Performance visualization and CSV export
 - [x] **Automated reproduction scripts (threads.sh, soak.sh)**
-- [x] **Speedup achievement on 8 threads**
 
 Fault Tolerance & Distributed Systems **COMPLETED**
 - [x] Fault injection mechanism via CLI flags
@@ -196,6 +208,7 @@ Heterogeneous Core Scheduling **COMPLETED**
 2. **Heterogeneity-aware orchestrator** routing heavy subtrees to P-cores  
 3. **Partitioned transposition tables** - hot entries on P-core caches, cold on E-cores
 4. **PV-split parallelization** with core-aware work distribution (PV nodes -> P-cores)
+5. **Opening book** and endgame tablebase integration
 
 ### Fault Tolerance Results
 ```json
@@ -211,9 +224,9 @@ Heterogeneous Core Scheduling **COMPLETED**
 ```
 
 ## Release History
+- **[v0.4.0](releases/v0.4.0/)**: Amdahl vs Gustafson scaling analysis - 48% serial fraction reduction
 - **[v0.3.0](releases/v0.3.0/)**: Add Heterogeneous core scheduling policies
 - **[v0.2.3-fault](releases/v0.2.3-fault/)**: Fault tolerance with panic recovery
-- **[v0.2.2-parallel](releases/v0.2.2-parallel/)**: Parallel scaling baseline
 
 ## Contributing
 This is primarily a learning project, but suggestions and discussions are welcome!

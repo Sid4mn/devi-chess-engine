@@ -49,6 +49,9 @@ pub struct Cli {
 
     #[arg(long)]
     pub dump_crashes: bool,
+
+    #[arg(long, help = "Custom CSV output path (default: benchmarks/speedup.csv)")]
+    pub csv_output: Option<String>,
 }
 
 pub fn parse_args() -> Cli {
@@ -107,5 +110,17 @@ mod tests {
     fn test_mixed_ratio() {
         let args = parse_test_args(&["devi", "--mixed-ratio", "0.5"]);
         assert_eq!(args.mixed_ratio, 0.5);
+    }
+
+    #[test]
+    fn test_csv_output_flag() {
+        let args = parse_test_args(&["devi", "--csv-output", "custom/path.csv"]);
+        assert_eq!(args.csv_output, Some("custom/path.csv".to_string()));
+    }
+
+    #[test] 
+    fn test_csv_output_default() {
+        let args = parse_test_args(&["devi"]);
+        assert_eq!(args.csv_output, None);
     }
 }
