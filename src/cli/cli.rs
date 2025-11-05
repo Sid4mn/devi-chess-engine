@@ -50,6 +50,9 @@ pub struct Cli {
     #[arg(long)]
     pub dump_crashes: bool,
 
+    #[arg(long, help = "Run fault tolerance overhead analysis")]
+    pub fault_analysis: bool,
+
     #[arg(long, help = "Custom CSV output path (default: benchmarks/speedup.csv)")]
     pub csv_output: Option<String>,
 }

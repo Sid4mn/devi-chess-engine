@@ -34,6 +34,7 @@ pub fn run_full_benchmark(args: &Cli) {
         thread_counts: threads,
         core_policy: policy,
         mixed_ratio: mixed_ratio,
+        inject_panic: args.inject_panic,
     };
 
     println!("Core scheduling policy: {:?}", policy);
@@ -358,60 +359,54 @@ fn format_with_commas(n: u64) -> String {
 }
 
 pub fn export_benchmark_csv_with_policy(results: &[BenchmarkResult], custom_path: Option<&str>) {
-    /* Check if csv file exists, if yes append results else add */
     let csv_path = custom_path.unwrap_or("benchmarks/speedup.csv");
 
+    // Create directory if needed
     if let Some(parent) = std::path::Path::new(csv_path).parent() {
         if !parent.exists() {
             if let Err(e) = std::fs::create_dir_all(parent) {
                 eprintln!("Warning: Failed to create directory {}: {}", parent.display(), e);
-                // Fall back to default if we can't create the directory
                 return export_benchmark_csv_with_policy(results, None);
             }
         }
     }
 
-    let file_exists = std::path::Path::new(csv_path).exists();
-
-    let file = match std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(csv_path) {
+    let mut file = match std::fs::File::create(csv_path) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("Error: Failed to open {}: {}", csv_path, e);
-            if custom_path.is_some() {
-                eprintln!("Falling back to default path");
-                return export_benchmark_csv_with_policy(results, None);
-            }
+            eprintln!("Error: Failed to create {}: {}", csv_path, e);
             panic!("Cannot write benchmark results");
         }
     };
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
     
-    let mut file = file;
+    // Or use a more readable format:
+    let dt = chrono::Local::now();
+    let timestamp_str = dt.format("%Y-%m-%d_%H:%M:%S").to_string();
+    
+    // Write header with timestamp as first column
+    writeln!(file, "timestamp,threads,policy,median_ms,searches_per_sec,speedup,efficiency").unwrap();
 
-    if !file_exists{
-        writeln!(
-            file,
-            "threads,policy,median_ms,searches_per_sec,speedup,efficiency"
-        ).unwrap();
-    }
-
+    // Write data rows
     for result in results {
         writeln!(
             file,
-            "{},{:?},{:.3},{:.2},{:.2},{:.1}",
+            "{},{},{:?},{:.3},{:.2},{:.2},{:.1}",
+            timestamp_str,  // Add timestamp to each row
             result.thread_count,
             result.core_policy,
             result.stats.median,
             result.searches_per_second,
             result.speedup,
             result.efficiency
-        )
-        .unwrap();
+        ).unwrap();
     }
 
-    println!("\nBenchmark results exported to {}", csv_path);
+    println!("\nBenchmark results written to {} (timestamp: {})", csv_path, timestamp_str);
 }
 
 pub fn export_benchmark_csv(results: &[BenchmarkResult], custom_path: Option<&str>) {

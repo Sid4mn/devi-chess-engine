@@ -4,6 +4,6 @@
     "root_index": 0,
     "move_attempted": "Move { from: Square(1), to: Square(18), special_move: None, promotion: None }",
     "panic_message": "Injected fault at root move 0",
-    "timestamp": 1756078603277
+    "timestamp": 1762270303603
   }
 ]

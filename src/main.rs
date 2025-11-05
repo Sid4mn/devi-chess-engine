@@ -9,16 +9,26 @@ fn main() {
 }
 
 fn run_command(args: &cli::Cli) {
-    match (
-        args.benchmark,
-        args.soak,
-        args.perft,
-        args.inject_panic.is_some(),
-    ) {
-        (true, _, _, _) => cli::run_full_benchmark(&args),
-        (_, true, _, _) => cli::run_soak_test(&args),
-        (_, _, true, _) => cli::run_perft_test(&args),
-        (_, _, _, true) if args.dump_crashes => cli::run_fault_analysis(&args),
-        _ => cli::run_single_search(args),
+    if args.fault_analysis {
+        cli::run_fault_analysis(&args);
+        return;
+    }
+
+    if args.inject_panic.is_some() {
+        if args.benchmark {
+            // Run benchmark WITH fault injection
+            cli::run_full_benchmark(&args);
+        } else {
+            // Regular search with fault injection
+            cli::run_single_search(&args);
+        }
+    } else {
+        // Normal dispatch without fault injection
+        match (args.benchmark, args.soak, args.perft) {
+            (true, _, _) => cli::run_full_benchmark(&args),
+            (_, true, _) => cli::run_soak_test(&args),
+            (_, _, true) => cli::run_perft_test(&args),
+            _ => cli::run_single_search(&args),
+        }
     }
 }

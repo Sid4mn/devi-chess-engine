@@ -1,9 +1,0 @@
-[
-  {
-    "thread_id": Some(10),
-    "root_index": 10,
-    "move_attempted": "Move { from: Square(11), to: Square(19), special_move: None, promotion: None }",
-    "panic_message": "Injected fault at root move 10",
-    "timestamp": 1756007018089
-  }
-]

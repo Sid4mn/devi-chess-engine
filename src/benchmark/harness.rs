@@ -4,6 +4,8 @@ use crate::board::{Board, BoardRepresentation};
 use crate::scheduling::CorePolicy;
 use crate::search::parallel::parallel_search_with_policy;
 use crate::search::{search};
+use crate::search::search_root_fault;
+
 
 #[derive(Clone)]
 pub struct BenchmarkConfig {
@@ -13,6 +15,7 @@ pub struct BenchmarkConfig {
     pub thread_counts: Vec<usize>,
     pub core_policy: CorePolicy,
     pub mixed_ratio: f32, // 0.80 = 8P+2E M1 pro ratio
+    pub inject_panic: Option<usize>,
 }
 
 impl Default for BenchmarkConfig {
@@ -24,6 +27,7 @@ impl Default for BenchmarkConfig {
             thread_counts: vec![1, 2, 4, 6, 8, 10],
             core_policy: CorePolicy::None,
             mixed_ratio: 0.80,
+            inject_panic: None,
         }
     }
 }
@@ -99,7 +103,7 @@ fn benchmark_thread_config_with_policy(thread_count: usize, config: &BenchmarkCo
     for _ in 0..config.warmup_runs {
         board.setup_starting_position();
         let _ =
-            execute_search_with_policy(&mut board, config.depth, thread_count, policy, mixed_ratio);
+            execute_search_with_policy(&mut board, config.depth, thread_count, policy, mixed_ratio, None); // No panic injection during warmup.
     }
 
     // Measurement phase
@@ -110,7 +114,7 @@ fn benchmark_thread_config_with_policy(thread_count: usize, config: &BenchmarkCo
         board.setup_starting_position();
 
         let (_, duration_ms) = time_execution_millis(|| {
-            execute_search_with_policy(&mut board, config.depth, thread_count, policy, mixed_ratio)
+            execute_search_with_policy(&mut board, config.depth, thread_count, policy, mixed_ratio, config.inject_panic) // Inject panic during measurement.
         });
 
         samples.push(duration_ms);
@@ -124,8 +128,11 @@ fn benchmark_thread_config(thread_count: usize, config: &BenchmarkConfig) -> Ben
     benchmark_thread_config_with_policy(thread_count, config, CorePolicy::None, 0.0)
 }
 
-fn execute_search_with_policy(board: &mut Board,depth: u32,thread_count: usize,policy: CorePolicy,mixed_ratio: f32) -> (crate::types::Move, i32) {
-    if thread_count == 1 {
+fn execute_search_with_policy(board: &mut Board,depth: u32,thread_count: usize,policy: CorePolicy,mixed_ratio: f32, inject_panic: Option<usize>) -> (crate::types::Move, i32) {
+    if let Some(panic_at) = inject_panic {
+        // Use fault-tolerant search when panic injection requested
+        search_root_fault(board, depth, Some(panic_at))
+    } else if thread_count == 1 {
         search(board, depth)
     } else {
         // QoS hints applied here via policy-specific thread pools
@@ -133,9 +140,9 @@ fn execute_search_with_policy(board: &mut Board,depth: u32,thread_count: usize,p
     }
 }
 
-fn execute_search(board: &mut Board, depth: u32, thread_count: usize) -> (crate::types::Move, i32) {
-    execute_search_with_policy(board, depth, thread_count, CorePolicy::None, 0.0)
-}
+// fn execute_search(board: &mut Board, depth: u32, thread_count: usize) -> (crate::types::Move, i32) {
+//     execute_search_with_policy(board, depth, thread_count, CorePolicy::None, 0.0, config.inject_panic)
+// }
 
 fn print_summary_with_policy(results: &[BenchmarkResult]) {
     println!("\n=== PERFORMANCE SUMMARY ===");

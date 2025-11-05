@@ -1,37 +1,44 @@
 #!/bin/bash
-# Get script directory and project root
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+set -euo pipefail
 
-echo "=== Fault Tolerance Testing ==="
-echo "Hardware: 10 cores (8P + 2E)"
-echo "Working from: $PROJECT_ROOT"
-cd "$PROJECT_ROOT"
+echo " Panic-Resilient Search Analysis"
+echo "====================================="
+echo "Hardware: M1 Pro (8P + 2E cores)"
+echo
 
-# Ensure prerequisites
-if [[ ! -f "$BINARY" ]]; then
-    echo "Release binary not found. Building..."
+# Build if needed
+if [[ ! -f ./target/release/devi ]]; then
+    echo "Building release binary..."
     cargo build --release
 fi
 
-# Ensure output directory exists
-mkdir -p $OUTPUT_DIR
+# Clean old logs
+rm -f crashes/*.json docs/fault_analysis.json 2>/dev/null || true
 
-BINARY=./target/release/devi
-DEPTH=7
-THREADS=10  # Use all 10 cores
+echo "Running analysis (baseline + 4 fault positions)..."
+echo
 
-echo -e "\nTest 1: Baseline (no faults, 10 threads)"
-$BINARY --benchmark --threads $THREADS --depth $DEPTH --warmup 3 --runs 10
+# Single invocation - Rust handles everything
+./target/release/devi --fault-analysis --threads 10 --depth 7
 
-echo -e "\nTest 2: Inject fault at move 0 (9/10 threads survive)"
-$BINARY --benchmark --threads $THREADS --depth $DEPTH --inject-panic 0 --warmup 3 --runs 10
-
-echo -e "\nTest 3: Inject fault at move 5 (9/10 threads survive)"
-$BINARY --benchmark --threads $THREADS --depth $DEPTH --inject-panic 5 --warmup 3 --runs 10
-
-echo -e "\nTest 4: Multiple faults (8/10 threads survive)"
-$BINARY --benchmark --threads $THREADS --depth $DEPTH --inject-panic 0 --inject-panic 5 --warmup 3 --runs 10
-
-echo -e "\nChecking crash logs..."
-ls -la crashes/ 2>/dev/null || echo "No crash logs found"
+# Display results if successful
+if [[ -f "docs/fault_analysis.json" ]]; then
+    echo
+    echo "====================================="
+    echo " Results Summary"
+    echo "====================================="
+    
+    # Extract metrics (robust patterns)
+    BASELINE=$(grep -o '"time_ms": [0-9.]*' docs/fault_analysis.json | head -1 | grep -o '[0-9.]*')
+    
+    echo "Baseline: ${BASELINE}ms (no faults)"
+    echo
+    echo "Fault Recovery Overhead:"
+    
+    # Extract overhead values (handles negative numbers)
+    grep -o '"overhead_percent": -\?[0-9.]*' docs/fault_analysis.json |
+        grep -o -- '-\?[0-9.]*' | 
+        while read PERCENT; do
+            printf "  %+.1f%%\n" "$PERCENT"
+        done
+fi

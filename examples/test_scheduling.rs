@@ -21,11 +21,7 @@ pub fn count_primes(limit: u64) -> u64 {
     count
 }
 
-pub fn test_single_policy(
-    policy: CorePolicy,
-    num_threads: usize,
-    mixed_ratio: f32,
-) -> BenchmarkStats {
+pub fn test_single_policy(policy: CorePolicy,num_threads: usize,mixed_ratio: f32,) -> BenchmarkStats {
     println!("\nTesting Policy: {:?}", policy);
     if matches!(policy, CorePolicy::Mixed) {
         println!(
@@ -71,14 +67,13 @@ pub fn test_single_policy(
 fn main() {
     println!("=== QoS Scheduling Test ===");
     println!("Platform: macOS (Apple Silicon)");
-    println!("Threads: 8\n");
 
     // Test each policy
     let policies = vec![
         ("None (baseline)", CorePolicy::None, 0.0),
         ("FastBias", CorePolicy::FastBias, 0.0),
         ("EfficientBias", CorePolicy::EfficientBias, 0.0),
-        ("Mixed (75% fast)", CorePolicy::Mixed, 0.75),
+        ("Mixed (80% fast)", CorePolicy::Mixed, 0.80),
     ];
 
     let mut times = Vec::new();
@@ -109,15 +104,15 @@ fn main() {
 
     if mixed_time > 0.0 {
         println!(
-            "Mixed (75%) is {:.2}x faster than EfficientBias",
+            "Mixed (80%) is {:.2}x faster than EfficientBias",
             efficient_time / mixed_time
         );
         println!(
-            "Mixed (75%) is {:.2}x slower than FastBias",
+            "Mixed (80%) is {:.2}x slower than FastBias",
             mixed_time / fast_time
         );
 
-        let theoretical_mixed = 0.75 * fast_time + 0.25 * efficient_time;
+        let theoretical_mixed = 0.80 * fast_time + 0.25 * efficient_time;
         let mixed_efficiency = theoretical_mixed / mixed_time;
         println!("Mixed efficiency vs theoretical: {:.2}x", mixed_efficiency);
     }
