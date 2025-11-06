@@ -47,10 +47,10 @@ pub struct Cli {
     #[arg(long)]
     pub inject_panic: Option<usize>,
 
-    #[arg(long)]
-    pub dump_crashes: bool,
+    #[arg(long, help = "Enable thread recovery with checkpointing")]
+    pub thread_recovery: bool,
 
-    #[arg(long, help = "Run fault tolerance overhead analysis")]
+    #[arg(long, help = "Run comprehensive fault tolerance overhead analysis")]
     pub fault_analysis: bool,
 
     #[arg(long, help = "Custom CSV output path (default: benchmarks/speedup.csv)")]

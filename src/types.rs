@@ -1,11 +1,12 @@
 use core::fmt;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Color {
     White,
     Black,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)] 
 pub enum PieceType {
     Pawn,
     Knight,
@@ -14,7 +15,7 @@ pub enum PieceType {
     Queen,
     King,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SpecialMove {
     Castle,
     Promotion,
@@ -30,7 +31,7 @@ pub const BQ: CastleMask = 1 << 3;
 
 pub const ALL_CASTLING: CastleMask = WK | WQ | BK | BQ;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Piece {
     pub piece_type: PieceType,
     pub color: Color,
@@ -44,7 +45,7 @@ impl Piece {
         }
     }
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Square(pub u8); // 0-63
 
 impl Square {
@@ -81,7 +82,7 @@ impl fmt::Display for Move {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)] 
 pub struct Move {
     pub from: Square,
     pub to: Square,
@@ -90,12 +91,7 @@ pub struct Move {
 }
 
 impl Move {
-    pub fn new(
-        _from: Square,
-        _to: Square,
-        special: Option<SpecialMove>,
-        _promo: Option<PieceType>,
-    ) -> Self {
+    pub fn new(_from: Square, _to: Square, special: Option<SpecialMove>, _promo: Option<PieceType>) -> Self {
         Move {
             from: _from,
             to: _to,
@@ -126,5 +122,16 @@ impl Move {
         }
 
         result
+    }
+}
+
+impl Default for Move {
+    fn default() -> Self {
+        Move {
+            from: Square(0),
+            to: Square(0),
+            special_move: None,
+            promotion: None,
+        }
     }
 }

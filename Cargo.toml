@@ -12,7 +12,9 @@ clap = { version = "4.0", features = ["derive"]}
 rayon = "1.10.0" 
 libc = "0.2"
 chrono = "0.4"
-# clap = "4.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde-big-array = "0.5"
 
 [profile.dev]
 overflow-checks = true

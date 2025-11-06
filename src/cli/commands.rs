@@ -5,11 +5,21 @@ use crate::evaluation::evaluate;
 use crate::moves::{perft, perft_divide, perft_parallel};
 use crate::scheduling::CorePolicy;
 use crate::search::parallel::parallel_search_with_policy;
-use crate::search::{parallel_search, search, search_root_fault};
+use crate::search::parallel::parallel_search_with_fault;
+use crate::search::{parallel_search, search};
+use crate::search::fault_tolerant::with_recovery;
 use rayon;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
 use std::time::Instant;
+
+struct FaultMeasurement {
+    scenario: &'static str,
+    times_ms: Vec<f64>,
+    median_ms: f64,
+    best_move: String,
+    score: i32,
+}
 
 pub fn run_full_benchmark(args: &Cli) {
     let mut board = Board::new();
@@ -64,116 +74,84 @@ pub fn run_single_search(args: &Cli) {
         println!("Using core policy: {:?}", p);
     }
 
-    let use_fault_tolerant = args.inject_panic.is_some() || args.dump_crashes;
-
-    let (best_move, _score) = if use_fault_tolerant {
-        println!(
-            "Using fault-tolerant search with panic injection at move {:?}",
-            args.inject_panic
-        );
-
-        if args.threads == 1 {
-            eprintln!("Warning: Fault injection requires multiple threads. Setting threads to 4.");
-        }
-
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(if args.threads == 1 { 4 } else { args.threads })
-            .build()
-            .expect("Failed to create thread pool");
-
-        pool.install(|| search_root_fault(&mut board, args.depth, args.inject_panic))
-    } else if args.threads == 1 {
-        search(&mut board, args.depth)
+    // Wrap with recovery if panic injection requested
+    let (best_move, _score) = if args.inject_panic.is_some() {
+        println!("Fault injection enabled at move {:?}", args.inject_panic);
+        
+        // Clone board for recovery closure
+        let search_fn = || {
+            let mut b = board.clone();
+            if args.threads == 1 {
+                search(&mut b, args.depth)
+            } else {
+                parallel_search_with_policy(&mut b, args.depth, policy, args.threads, mixed_ratio)
+            }
+        };
+        with_recovery(search_fn, args.inject_panic)
     } else {
-        // let pool = rayon::ThreadPoolBuilder::new()
-        //     .num_threads(args.threads)
-        //     .build()
-        //     .expect("Failed to create thread pool");
-        // pool.install(|| parallel_search(&mut board, args.depth))
-        parallel_search_with_policy(&mut board, args.depth, policy, args.threads, mixed_ratio)
+        // No recovery, use board directly
+        if args.threads == 1 {
+            search(&mut board, args.depth)
+        } else {
+            parallel_search_with_policy(&mut board, args.depth, policy, args.threads, mixed_ratio)
+        }
     };
 
     println!("Best move: {} -> {}", best_move.from.0, best_move.to.0);
 }
 
-pub fn run_fault_analysis(args: &Cli) {
-    println!("--- FAULT TOLERANCE ANALYSIS ---");
-    println!("Testing panic recovery overhead...");
+pub fn run_recovery_analysis(args: &Cli) {
+    println!("=== THREAD RECOVERY ANALYSIS ===");
+    println!("Testing retry-based recovery with panic injection\n");
 
     let mut board = Board::new();
     board.setup_starting_position();
 
-    create_dir_all("docs").expect("Failed to create docs director");
-
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(args.threads)
-        .build()
-        .expect("Failed to create thread pool");
-
+    // Test 1: Baseline (no panic)
+    println!("Test 1: Baseline (no panic injection)");
     let start = Instant::now();
-    let (_, baseline_score) = pool.install(|| parallel_search(&mut board, args.depth));
-    let baseline_time = start.elapsed();
+    let (mv1, score1) = parallel_search(&mut board, args.depth);
+    let time1 = start.elapsed();
+    println!("Move: {}, Score: {}, Time: {:.3}ms", mv1, score1, time1.as_secs_f64() * 1000.0);
 
-    let test_positions = vec![0, 5, 10, 15];
-    let mut fault_results = Vec::new();
+    // Test 2: With panic + recovery
+    println!("\nTest 2: With panic injection + recovery");
+    let start = Instant::now();
+    
+    // Clone board for recovery closure
+    let board_clone = board.clone();
+    let search_fn = || {
+        let mut b = board_clone.clone();
+        parallel_search(&mut b, args.depth)
+    };
+    
+    let (mv2, score2) = with_recovery(search_fn, Some(5));
+    let time2 = start.elapsed();
+    println!("Move: {}, Score: {}, Time: {:.3}ms", mv2, score2, time2.as_secs_f64() * 1000.0);
 
-    for panic_at in test_positions {
-        let start = Instant::now();
-        let (_mv, score) =
-            pool.install(|| search_root_fault(&mut board, args.depth, Some(panic_at)));
-        let fault_time = start.elapsed();
-
-        let overhead_percent =
-            ((fault_time.as_micros() as f64 / baseline_time.as_micros() as f64) - 1.0) * 100.0;
-
-        fault_results.push((panic_at, score, fault_time, overhead_percent));
-
-        println!(
-            "Fault at move {}: Score={}, Time={:.3}ms, Overhead={:.1}%",
-            panic_at,
-            score,
-            fault_time.as_micros() as f64 / 1000.0,
-            overhead_percent
-        );
+    // Verify correctness
+    println!("\n=== CORRECTNESS CHECK ===");
+    if mv1.to_algebraic() != mv2.to_algebraic() {
+        println!("WARNING: Move changed! {} -> {}", mv1, mv2);
+    } else {
+        println!("Move preserved: {}", mv1);
+    }
+    
+    if score1 != score2 {
+        println!("WARNING: Score changed! {} -> {}", score1, score2);
+    } else {
+        println!("Score preserved: {}", score1);
     }
 
-    // Write results to JSON
-    let mut file = File::create("docs/fault_analysis.json").expect("Failed to create JSON file");
-    writeln!(file, "{{").unwrap();
-    writeln!(file, "  \"baseline\": {{").unwrap();
-    writeln!(file, "    \"score\": {},", baseline_score).unwrap();
-    writeln!(file,"    \"time_ms\": {:.3}",baseline_time.as_micros() as f64 / 1000.0).unwrap();
-    writeln!(file, "  }},").unwrap();
-    writeln!(file, "  \"fault_tests\": [").unwrap();
-
-    for (i, (pos, score, time, overhead)) in fault_results.iter().enumerate() {
-        writeln!(file, "    {{").unwrap();
-        writeln!(file, "      \"fault_position\": {},", pos).unwrap();
-        writeln!(file, "      \"score\": {},", score).unwrap();
-        writeln!(file, "      \"time_ms\": {:.3},",time.as_micros() as f64 / 1000.0).unwrap();
-        writeln!(file, "      \"overhead_percent\": {:.1}", overhead).unwrap();
-        write!(file, "    }}").unwrap();
-        if i < fault_results.len() - 1 {
-            writeln!(file, ",").unwrap();
-        } else {
-            writeln!(file).unwrap();
-        }
-    }
-
-    writeln!(file, "  ]").unwrap();
-    writeln!(file, "}}").unwrap();
-
-    println!("\nFault analysis results written to docs/fault_analysis.json");
+    let overhead = ((time2.as_millis() as f64 / time1.as_millis() as f64) - 1.0) * 100.0;
+    println!("\nRecovery overhead: {:.1}%", overhead);
 }
 
 pub fn run_soak_test(args: &Cli) {
     use std::time::Instant;
 
     println!("--- SOAK TEST ---");
-    println!(
-        "Threads: {}, Depth: {}, Iterations: {}",
-        args.threads, args.depth, args.runs
-    );
+    println!("Threads: {}, Depth: {}, Iterations: {}", args.threads, args.depth, args.runs);
 
     let mut samples_ms: Vec<f64> = Vec::new();
 
@@ -411,4 +389,260 @@ pub fn export_benchmark_csv_with_policy(results: &[BenchmarkResult], custom_path
 
 pub fn export_benchmark_csv(results: &[BenchmarkResult], custom_path: Option<&str>) {
     export_benchmark_csv_with_policy(results, custom_path);
+}
+
+pub fn run_fault_overhead_analysis(args: &Cli) {
+    let depth = if args.depth < 7 { 7 } else { args.depth };
+    let threads = args.threads;
+    let iterations = 5;
+    let warmup_per_scenario = 3;
+
+    println!("Fault Tolerance Overhead Analysis");
+    println!("Depth: {}, Threads: {}, Iterations: {}\n", depth, threads, iterations);
+
+    let mut board = Board::new();
+    board.setup_starting_position();
+
+    let mut results = Vec::new();
+
+    // === Baseline ===
+    println!("Scenario 1: Baseline (no recovery wrapper)");
+    println!("  Warming up ({} runs)...", warmup_per_scenario);
+    for _ in 0..warmup_per_scenario {
+        let mut b = board.clone();
+        let _ = if threads == 1 {
+            search(&mut b, depth)
+        } else {
+            parallel_search(&mut b, depth)
+        };
+    }
+
+    println!("  Measuring...");
+    let mut baseline_times = Vec::new();
+    let mut baseline_move = String::new();
+    let mut baseline_score = 0;
+
+    for i in 1..=iterations {
+        let mut b = board.clone();
+        let start = Instant::now();
+        let (mv, score) = if threads == 1 {
+            search(&mut b, depth)
+        } else {
+            parallel_search(&mut b, depth)
+        };
+        let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+        baseline_times.push(elapsed);
+        baseline_move = mv.to_algebraic();
+        baseline_score = score;
+        println!("    Run {}: {:.3}ms", i, elapsed);
+    }
+    baseline_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let baseline_median = baseline_times[baseline_times.len() / 2];
+    println!("  Median: {:.3}ms\n", baseline_median);
+
+    results.push(FaultMeasurement {
+        scenario: "baseline",
+        times_ms: baseline_times,
+        median_ms: baseline_median,
+        best_move: baseline_move.clone(),
+        score: baseline_score,
+    });
+
+    // === Zero-overhead check ===
+    println!("Scenario 2: Zero-overhead (wrapper, no panic)");
+    println!("  Warming up ({} runs)...", warmup_per_scenario);
+    for _ in 0..warmup_per_scenario {
+        let board_clone = board.clone();
+        let search_fn = || {
+            let mut b = board_clone.clone();
+            if threads == 1 {
+                search(&mut b, depth)
+            } else {
+                parallel_search(&mut b, depth)
+            }
+        };
+        let _ = with_recovery(search_fn, None);
+    }
+
+    println!("  Measuring...");
+    let mut zero_times = Vec::new();
+    let mut zero_move = String::new();
+    let mut zero_score = 0;
+
+    for i in 1..=iterations {
+        let board_clone = board.clone();
+        let search_fn = || {
+            let mut b = board_clone.clone();
+            if threads == 1 {
+                search(&mut b, depth)
+            } else {
+                parallel_search(&mut b, depth)
+            }
+        };
+        let start = Instant::now();
+        let (mv, score) = with_recovery(search_fn, None);
+        let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+        zero_times.push(elapsed);
+        zero_move = mv.to_algebraic();
+        zero_score = score;
+        println!("    Run {}: {:.3}ms", i, elapsed);
+    }
+    zero_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let zero_median = zero_times[zero_times.len() / 2];
+    let zero_overhead = ((zero_median - baseline_median) / baseline_median) * 100.0;
+    println!("  Median: {:.3}ms", zero_median);
+    println!("  Overhead: {:.2}%\n", zero_overhead);
+
+    results.push(FaultMeasurement {
+        scenario: "zero_overhead",
+        times_ms: zero_times,
+        median_ms: zero_median,
+        best_move: zero_move,
+        score: zero_score,
+    });
+
+    // === Recovery with actual fault ===
+    println!("Scenario 3: With panic (recovery triggered)");
+    println!("  Warming up ({} runs)...", warmup_per_scenario);
+    for _ in 0..warmup_per_scenario {
+        let board_clone = board.clone();
+        let search_fn = || {
+            let mut b = board_clone.clone();
+            if threads == 1 {
+                search(&mut b, depth)
+            } else {
+                parallel_search_with_fault(&mut b, depth, CorePolicy::None, threads, 0.0, Some(5))
+            }
+        };
+        let _ = with_recovery(search_fn, Some(5));
+    }
+
+    println!("  Measuring...");
+    let mut panic_times = Vec::new();
+    let mut panic_move = String::new();
+    let mut panic_score = 0;
+
+    for i in 1..=iterations {
+        let board_clone = board.clone();
+        let search_fn = || {
+            let mut b = board_clone.clone();
+            if threads == 1 {
+                search(&mut b, depth)
+            } else {
+                parallel_search_with_fault(&mut b, depth, CorePolicy::None, threads, 0.0, Some(5))
+            }
+        };
+        
+        let start = Instant::now();
+        let (mv, score) = with_recovery(search_fn, Some(5));
+        let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+        
+        panic_times.push(elapsed);
+        panic_move = mv.to_algebraic();
+        panic_score = score;
+        println!("    Run {}: {:.3}ms (includes retry)", i, elapsed);
+    }
+    panic_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let panic_median = panic_times[panic_times.len() / 2];
+    let panic_overhead = ((panic_median - baseline_median) / baseline_median) * 100.0;
+    println!("  Median: {:.3}ms", panic_median);
+    println!("  Overhead: {:.2}%\n", panic_overhead);
+
+    results.push(FaultMeasurement {
+        scenario: "with_panic",
+        times_ms: panic_times,
+        median_ms: panic_median,
+        best_move: panic_move,
+        score: panic_score,
+    });
+
+    // === Sanity: double work ===
+    println!("Scenario 4: Double work (sanity check)");
+    println!("  Measuring...");
+    let mut double_times = Vec::new();
+
+    for i in 1..=iterations {
+        let mut b = board.clone();
+        let start = Instant::now();
+        
+        let (mv1, score1) = if threads == 1 {
+            search(&mut b, depth)
+        } else {
+            parallel_search(&mut b, depth)
+        };
+        
+        let mut b2 = board.clone();
+        let (_mv2, _score2) = if threads == 1 {
+            search(&mut b2, depth)
+        } else {
+            parallel_search(&mut b2, depth)
+        };
+        
+        let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+        double_times.push(elapsed);
+        println!("    Run {}: {:.3}ms (2x work)", i, elapsed);
+        
+        assert_eq!(mv1.to_algebraic(), _mv2.to_algebraic(), "Non-deterministic!");
+        assert_eq!(score1, _score2, "Score mismatch!");
+    }
+    
+    double_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let double_median = double_times[double_times.len() / 2];
+    let double_overhead = ((double_median - baseline_median) / baseline_median) * 100.0;
+    println!("  Median: {:.3}ms", double_median);
+    println!("  Overhead: {:.2}% (expected ~100%)\n", double_overhead);
+
+    results.push(FaultMeasurement {
+        scenario: "double_work",
+        times_ms: double_times,
+        median_ms: double_median,
+        best_move: baseline_move.clone(),
+        score: baseline_score,
+    });
+
+    let csv_path = "benchmarks/fault_overhead.csv";
+    export_fault_csv(&results, csv_path, depth, threads);
+
+    println!("SUMMARY:");
+    println!("  Baseline:      {:.3}ms", baseline_median);
+    println!("  Zero-overhead: {:.3}ms ({:+.2}%)", zero_median, zero_overhead);
+    println!("  With panic:    {:.3}ms ({:+.2}%)", panic_median, panic_overhead);
+    println!("  Double work:   {:.3}ms ({:+.2}%)", double_median, double_overhead);
+    
+    let correctness_passed = results.iter().all(|r| 
+        r.best_move == baseline_move && r.score == baseline_score
+    );
+    println!("  Correctness:   {}", if correctness_passed { "PASS" } else { "FAIL" });
+    println!("\nResults exported to: {}", csv_path);
+}
+
+fn export_fault_csv(results: &[FaultMeasurement], path: &str, depth: u32, threads: usize) {
+    if let Some(parent) = std::path::Path::new(path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    let mut file = std::fs::File::create(path).unwrap();
+    let ts = chrono::Local::now().format("%Y-%m-%d_%H:%M:%S").to_string();
+
+    writeln!(file, "timestamp,depth,threads,scenario,median_ms,overhead_pct,move,score,min_ms,max_ms").unwrap();
+
+    let baseline_ms = results[0].median_ms;
+    for r in results {
+        let overhead = if r.scenario == "baseline" {
+            0.0
+        } else {
+            ((r.median_ms - baseline_ms) / baseline_ms) * 100.0
+        };
+        
+        let min_ms = r.times_ms.iter().cloned().fold(f64::INFINITY, f64::min);
+        let max_ms = r.times_ms.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        
+        writeln!(
+            file,
+            "{},{},{},{},{:.3},{:.2},{},{},{:.3},{:.3}",
+            ts, depth, threads, r.scenario, r.median_ms, overhead, 
+            r.best_move, r.score, min_ms, max_ms
+        )
+        .unwrap();
+    }
 }

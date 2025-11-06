@@ -9,8 +9,14 @@ fn main() {
 }
 
 fn run_command(args: &cli::Cli) {
+
+    if args.thread_recovery {
+        cli::commands::run_recovery_analysis(&args);
+        return;
+    }
+
     if args.fault_analysis {
-        cli::run_fault_analysis(&args);
+        cli::commands::run_fault_overhead_analysis(&args);
         return;
     }
 

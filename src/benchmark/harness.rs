@@ -3,9 +3,10 @@ use crate::benchmark::timer::time_execution_millis;
 use crate::board::{Board, BoardRepresentation};
 use crate::scheduling::CorePolicy;
 use crate::search::parallel::parallel_search_with_policy;
+use crate::search::parallel::parallel_search_with_fault;
 use crate::search::{search};
-use crate::search::search_root_fault;
-
+use crate::search::fault_tolerant::with_recovery;
+use crate::types::Move;
 
 #[derive(Clone)]
 pub struct BenchmarkConfig {
@@ -124,25 +125,34 @@ fn benchmark_thread_config_with_policy(thread_count: usize, config: &BenchmarkCo
     BenchmarkStats::from_samples(&samples)
 }
 
-fn benchmark_thread_config(thread_count: usize, config: &BenchmarkConfig) -> BenchmarkStats {
-    benchmark_thread_config_with_policy(thread_count, config, CorePolicy::None, 0.0)
-}
-
-fn execute_search_with_policy(board: &mut Board,depth: u32,thread_count: usize,policy: CorePolicy,mixed_ratio: f32, inject_panic: Option<usize>) -> (crate::types::Move, i32) {
-    if let Some(panic_at) = inject_panic {
-        // Use fault-tolerant search when panic injection requested
-        search_root_fault(board, depth, Some(panic_at))
-    } else if thread_count == 1 {
-        search(board, depth)
+fn execute_search_with_policy(board: &mut Board, depth: u32, thread_count: usize, policy: CorePolicy, mixed_ratio: f32, inject_panic: Option<usize>) -> (Move, i32) {
+    if inject_panic.is_some() {
+        // Wrapper handles retry; search does real work before panic
+        let search_fn = || {
+            let mut b = board.clone();
+            if thread_count == 1 {
+                search(&mut b, depth)
+            } else {
+                parallel_search_with_fault(
+                    &mut b, 
+                    depth, 
+                    policy, 
+                    thread_count, 
+                    mixed_ratio,
+                    inject_panic
+                )
+            }
+        };
+        with_recovery(search_fn, inject_panic)
     } else {
-        // QoS hints applied here via policy-specific thread pools
-        parallel_search_with_policy(board, depth, policy, thread_count, mixed_ratio)
+        if thread_count == 1 {
+            search(board, depth)
+        } else {
+            parallel_search_with_policy(board, depth, policy, thread_count, mixed_ratio)
+        }
     }
 }
 
-// fn execute_search(board: &mut Board, depth: u32, thread_count: usize) -> (crate::types::Move, i32) {
-//     execute_search_with_policy(board, depth, thread_count, CorePolicy::None, 0.0, config.inject_panic)
-// }
 
 fn print_summary_with_policy(results: &[BenchmarkResult]) {
     println!("\n=== PERFORMANCE SUMMARY ===");

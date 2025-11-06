@@ -1,8 +1,8 @@
 #!/bin/bash
+# filepath: /Users/funinc/Documents/chess-engine-rust/chess-engine-rust/scripts/run_fault.sh
 set -euo pipefail
 
-echo " Panic-Resilient Search Analysis"
-echo "====================================="
+echo " Thread Recovery Analysis (v0.4.0)"
 echo "Hardware: M1 Pro (8P + 2E cores)"
 echo
 
@@ -12,33 +12,12 @@ if [[ ! -f ./target/release/devi ]]; then
     cargo build --release
 fi
 
-# Clean old logs
-rm -f crashes/*.json docs/fault_analysis.json 2>/dev/null || true
-
-echo "Running analysis (baseline + 4 fault positions)..."
+echo "Running recovery analysis with wrapper pattern..."
 echo
 
-# Single invocation - Rust handles everything
-./target/release/devi --fault-analysis --threads 10 --depth 7
+# Use the thread-recovery command
+./target/release/devi --thread-recovery --depth 7
 
-# Display results if successful
-if [[ -f "docs/fault_analysis.json" ]]; then
-    echo
-    echo "====================================="
-    echo " Results Summary"
-    echo "====================================="
-    
-    # Extract metrics (robust patterns)
-    BASELINE=$(grep -o '"time_ms": [0-9.]*' docs/fault_analysis.json | head -1 | grep -o '[0-9.]*')
-    
-    echo "Baseline: ${BASELINE}ms (no faults)"
-    echo
-    echo "Fault Recovery Overhead:"
-    
-    # Extract overhead values (handles negative numbers)
-    grep -o '"overhead_percent": -\?[0-9.]*' docs/fault_analysis.json |
-        grep -o -- '-\?[0-9.]*' | 
-        while read PERCENT; do
-            printf "  %+.1f%%\n" "$PERCENT"
-        done
-fi
+echo " Analysis Complete"
+echo "Note: Recovery now uses generic wrapper pattern."
+echo "      Works with any search strategy (baseline, parallel, hetero-phase)."

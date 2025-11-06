@@ -14,8 +14,8 @@ Building a chess engine from scratch to understand parallel search algorithms an
 ## Study Timeline
 | Version | Focus | Key Result | Details |
 |---------|-------|------------|---------|
-| [v0.2.3](releases/v0.2.3-fault/) | Fault tolerance | 15% overhead, graceful recovery | [Brief](releases/v0.2.3-fault/project_brief.md) |
 | [v0.3.0](releases/v0.3.0/) | **Heterogeneous scheduling** | **13× P vs E core gap** | [Brief](releases/v0.3.0/project_brief.md) |
+| [v0.4.0](releases/v0.4.0/) | Fault tolerance | All work lost, requires checkpointing. | [Brief](releases/v0.4.0/fault_tolerance_analysis.md) |
 | [v0.4.0](releases/v0.4.0/) | **Scaling laws (Amdahl vs Gustafson)** | **48% serial fraction reduction** | [Brief](releases/v0.4.0/scaling_analysis.md) |
 
 ## Performance Status
@@ -27,7 +27,15 @@ Building a chess engine from scratch to understand parallel search algorithms an
 ![Speedup Comparison](benchmarks/scaling_analysis/speedup_comparison.png)
 ![Efficiency Comparison](benchmarks/scaling_analysis/efficiency_comparison.png)
 
+### Fault Tolerance Results (v0.4.0)
+**Key Finding**: Mid-computation thread failure causes 100% overhead due to Rayon's all-or-nothing model. Establishes baseline for future checkpoint-based recovery.
 
+| Scenario | Time (ms) | Overhead | Best Move | Notes |
+|----------|-----------|----------|-----------|-------|
+| Baseline | 416.5 | 0% | f2f4 | Direct parallel search |
+| Wrapper only | 437.0 | +4.9% | f2f4 | Negligible wrapper cost |
+| **With panic** | **833.6** | **+100.1%** | **f2f4** | **All parallel work lost** |
+| Double work | 884.5 | +112.4% | f2f4 | Validation baseline |
 
 ```
 M1 Pro | Depth comparison
@@ -65,6 +73,16 @@ cd devi-chess-engine && cargo build --release
 
 ### CLI Usage
 
+#### Fault Tolerance Analysis
+```bash
+# Full overhead characterization (4 scenarios)
+./target/release/devi --fault-analysis --depth 7 --threads 8
+# Output: benchmarks/fault_overhead.csv
+
+# Quick recovery test
+cargo run --release -- --recovery-analysis --depth 6
+```
+
 #### Scaling Analysis
 ```bash
 # Compare Amdahl (depth 4) vs Gustafson (depth 7)
@@ -80,7 +98,7 @@ cargo run --release -- --benchmark --benchmark-sweep --depth 7
 # Test specific core policies
 cargo run --release -- --benchmark --depth 7 --threads 8 --core-policy fast
 cargo run --release -- --benchmark --depth 7 --threads 8 --core-policy efficient
-cargo run --release -- --benchmark --depth 7 --threads 8 --core-policy mixed --mixed-ratio 0.75
+cargo run --release -- --benchmark --depth 7 --threads 8 --core-policy mixed --mixed-ratio 0.8
 ```
 
 ### Standard Benchmarking
@@ -142,8 +160,8 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 | `--perft` | Run perft move generation test | - |
 | `--parallel-perft` | Use parallel perft computation | false |
 | `--perft-divide` | Show perft results per root move | - |
-| `--inject-panic` | Inject panic at specific move index | - |
-| `--dump-crashes` | Enable crash logging and analysis | false |
+| `--fault-analysis` | Run 4-scenario fault overhead analysis | - |
+| `--recovery-analysis` | Quick fault recovery test | - |
 
 ## Deliverables
 
@@ -187,14 +205,13 @@ Parallel Scalability **COMPLETED**
 - [x] Performance visualization and CSV export
 - [x] **Automated reproduction scripts (threads.sh, soak.sh)**
 
-Fault Tolerance & Distributed Systems **COMPLETED**
-- [x] Fault injection mechanism via CLI flags
-- [x] Panic recovery with graceful degradation
-- [x] Thread-safe crash logging with JSON export
-- [x] Performance overhead measurement (<12% impact)
-- [x] Automated fault tolerance testing (run_fault.sh)
-- [x] **Graceful degradation under worker thread failure**
-- [x] **Best-effort results from surviving workers**
+Fault Tolerance **COMPLETED**
+- [x] Panic recovery wrapper with catch_unwind
+- [x] Real work injection (2-ply before panic)
+- [x] 4-scenario overhead characterization
+- [x] Correctness preservation across retries
+- [x] CSV export and analysis documentation
+- [x] Baseline for future checkpoint-based recovery
 
 Heterogeneous Core Scheduling **COMPLETED**
 - [x] QoS-based thread biasing for P/E core scheduling
@@ -204,23 +221,21 @@ Heterogeneous Core Scheduling **COMPLETED**
 
 ## Future Work
 
-1. **Work-stealing scheduler** with separate P/E core pools
-2. **Heterogeneity-aware orchestrator** routing heavy subtrees to P-cores  
-3. **Partitioned transposition tables** - hot entries on P-core caches, cold on E-cores
-4. **PV-split parallelization** with core-aware work distribution (PV nodes -> P-cores)
-5. **Opening book** and endgame tablebase integration
+1. **Checkpoint-based recovery** - reduce overhead from 100% to ~15-30%
+2. **Work-stealing scheduler** with separate P/E core pools
+3. **Heterogeneity-aware orchestrator** routing heavy subtrees to P-cores  
+4. **Partitioned transposition tables** - hot entries on P-core caches, cold on E-cores
+5. **PV-split parallelization** with core-aware work distribution (PV nodes -> P-cores)
+6. **Opening book** and endgame tablebase integration
 
 ### Fault Tolerance Results
-```json
-{
-  "baseline": { "score": 0, "time_ms": 2.548 },
-  "fault_tests": [
-    { "fault_position": 0, "score": 0, "time_ms": 2.733, "overhead_percent": 7.3 },
-    { "fault_position": 5, "score": 0, "time_ms": 2.840, "overhead_percent": 11.5 },
-    { "fault_position": 10, "score": 0, "time_ms": 2.468, "overhead_percent": -3.1 },
-    { "fault_position": 15, "score": 0, "time_ms": 2.474, "overhead_percent": -2.9 }
-  ]
-}
+```
+timestamp,depth,threads,scenario,median_ms,overhead_pct,move,score,min_ms,max_ms
+2025-11-05_18:45:58,7,10,baseline,416.541,0.00,f2f4,0,385.068,449.377
+2025-11-05_18:45:58,7,10,zero_overhead,436.952,4.90,f2f4,0,428.033,446.038
+2025-11-05_18:45:58,7,10,with_panic,833.579,100.12,f2f4,0,813.217,899.359
+2025-11-05_18:45:58,7,10,double_work,884.543,112.35,f2f4,0,861.157,900.324
+,,,,,,,,,
 ```
 
 ## Release History

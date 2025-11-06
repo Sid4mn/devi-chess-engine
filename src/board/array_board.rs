@@ -1,9 +1,12 @@
 use super::traits::{BoardRepresentation, UndoMove};
 use crate::types::*;
 use crate::types::{BK, BQ, WK, WQ};
+use serde::{Serialize, Deserialize};
+use serde_big_array::BigArray;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct ArrayBoard {
+    #[serde(with = "BigArray")]
     squares: [Option<Piece>; 64],
     to_move: Color,
     castling_rights: u8,
