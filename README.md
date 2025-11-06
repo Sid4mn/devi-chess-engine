@@ -3,10 +3,16 @@
 Building a chess engine from scratch to understand parallel search algorithms and push Rust's performance boundaries.
 
 ## Inspiration & Learning Resources
-- **Book**: Chess Algo - Noah Caplinger - modern algorithmic approach to chess programming and search optimization
-- **Book**: Computers, chess and long-range planning - M.M. Botvinnik - foundational theory on strategic planning and evaluation from a chess grandmaster's perspective
-- MIT 6.5840 & Berkeley CS267 lecture sets (distributed + parallel fundamentals)
+
+### Chess Algorithms
+- **Book**: *Chess Algo* - Noah Caplinger - Modern algorithmic approach to chess programming and search optimization
+- **Book**: *Computers, Chess and Long-Range Planning* - M.M. Botvinnik - Foundational theory on strategic planning and evaluation from a chess grandmaster's perspective
 - Research papers on Lazy SMP, Jamboree search, and transposition-table design
+
+### Systems & Parallel Computing
+- **Paper**: [*The Tail at Scale*](https://research.google/pubs/pub40801/) (Dean & Barroso, 2013) - Latency characterization motivates P/E heterogeneity analysis
+- **Paper**: [*Harness*](https://mehmet.belviranli.com/papers/ics25.pdf) (Belviranli et al., ICS 2025) - Pattern-based work classification concept adapted for chess move categorization via PV probe
+- **Lectures**: [MIT 6.5840](https://pdos.csail.mit.edu/6.824/) & [Berkeley CS267](https://sites.google.com/lbl.gov/cs267-spr2024) - Distributed and parallel computing fundamentals
 
 ## Project Philosophy
 **Approach:** Build it, measure it, understand the bottlenecks.
@@ -236,6 +242,12 @@ timestamp,threads,policy,median_ms,searches_per_sec
 2025-11-05_21:59:06,8,EfficientBias,5961.903,0.17
 2025-11-05_21:59:17,8,Mixed,704.135,1.42
 ```
+
+## Future Directions (v0.5.0 Roadmap)
+
+**Harness-Inspired Lightweight Scheduler** - Two-phase root execution using 2-depth PV probe to classify heavy/light moves by subtree size, then evaluate on dedicated P-core and E-core Rayon pools.
+
+**Checkpoint Recovery** - Per-thread root-level checkpointing with `catch_unwind` to preserve completed move evaluations on panic. Target: ≤30% overhead (vs current 100% full retry).
 
 ## Contributing
 This is primarily a learning project, but suggestions and discussions are welcome!
