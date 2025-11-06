@@ -11,7 +11,7 @@ QoS-based thread biasing on Apple Silicon M1 Pro reveals a **12.8x performance g
 
 ## Results
 
-![Heterogeneous Performance](../../benchmarks/heterogeneous_impact.png)
+![Heterogeneous Performance](heterogeneous_impact.png)
 
 ### 8 Threads (Clean P vs E Comparison)
 | Policy | Searches/sec | Time (ms) | Relative | P/E Gap |
@@ -45,7 +45,7 @@ Chess search stresses E-cores via:
 ### Mixed Policy Failure
 **Expected (8 threads)**: 0.8 x 2.08 + 0.2 x 0.17 = 1.70 searches/sec (78%)  
 **Actual**: 1.42 searches/sec (65%)  
-**Gap**: 13% worse than expected due to critical-path scheduling
+**Gap**: Critical-path scheduling (slowest worker blocks completion)
 
 ## Key Findings
 

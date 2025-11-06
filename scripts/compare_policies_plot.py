@@ -69,7 +69,7 @@ def main():
     
     ax.axhline(y=baseline, color='gray', linestyle='--', alpha=0.4)
     ax.set_ylabel('Searches per Second', fontsize=14, fontweight='bold')
-    ax.set_title('Core Scheduling Impact on Chess Search Performance\nM1 Pro (6P+2E), Depth 7, 8 threads', fontsize=15, fontweight='bold')
+    ax.set_title('Core Scheduling Impact on Chess Search Performance\nM1 Pro (8P+2E), Depth 7, 8 threads', fontsize=15, fontweight='bold')
     ax.grid(axis='y', alpha=0.3)
     ax.set_ylim(0, max(values) * 1.15)
     

@@ -43,10 +43,10 @@ In alpha-beta search:
 
 ### Visual Analysis
 
-![Speedup Comparison](benchmarks/scaling_analysis/speedup_comparison.png)
+![Speedup Comparison](../../benchmarks/scaling_analysis/speedup_comparison.png)
 *Depth 7 (large problem) maintains near-linear scaling while Depth 4 (small) plateaus early*
 
-![Efficiency Comparison](benchmarks/scaling_analysis/efficiency_comparison.png)  
+![Efficiency Comparison](../../benchmarks/scaling_analysis/efficiency_comparison.png)  
 *17.9% efficiency gap at 8 threads demonstrates Gustafson's principle: larger problems utilize parallelism better*
 
 ## Key Observations

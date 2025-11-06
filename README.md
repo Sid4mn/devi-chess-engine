@@ -33,7 +33,7 @@ Three studies on parallel chess search:
 ### 3. Heterogeneous Scheduling
 **12.8x P/E gap** - E-cores unsuitable for branch-heavy search.
 
-![Heterogeneous Impact](benchmarks/heterogeneous_impact.png)
+![Heterogeneous Impact](releases/v0.4.0/heterogeneous_impact.png)
 ```
 8 threads | Depth 7:
   P-cores (Fast):     2.08 searches/sec

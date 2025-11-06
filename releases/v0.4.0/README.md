@@ -23,7 +23,7 @@ This release contains three independent performance studies on parallel chess se
 ## Visual Summary
 
 ### Heterogeneous Performance
-![Heterogeneous Impact](../../benchmarks/heterogeneous_impact.png)
+![Heterogeneous Impact](heterogeneous_impact.png)
 
 ### Scaling Comparison
 ![Scaling](../../benchmarks/scaling_analysis/speedup_comparison.png)
