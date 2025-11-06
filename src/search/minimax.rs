@@ -6,7 +6,7 @@ use crate::types::*;
 pub const INFINITY: i32 = 1_000_000;
 pub const MATE_SCORE: i32 = 100_000; // high but not Max to allow mate in N moves scoring
 
-// Non pruning basic minimax. 
+// Non pruning basic minimax.
 pub fn minimax(board: &mut Board, depth: u32, maximizing_player: bool) -> i32 {
     if depth == 0 {
         return evaluate(board); // leaf
@@ -50,7 +50,13 @@ pub fn minimax(board: &mut Board, depth: u32, maximizing_player: bool) -> i32 {
     }
 }
 
-pub fn alphabeta(board: &mut Board, depth: u32, mut alpha: i32, mut beta: i32, maximizing_player: bool,) -> i32 {
+pub fn alphabeta(
+    board: &mut Board,
+    depth: u32,
+    mut alpha: i32,
+    mut beta: i32,
+    maximizing_player: bool,
+) -> i32 {
     if depth == 0 {
         return evaluate(board);
     }

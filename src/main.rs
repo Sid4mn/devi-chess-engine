@@ -9,7 +9,6 @@ fn main() {
 }
 
 fn run_command(args: &cli::Cli) {
-
     if args.thread_recovery {
         cli::commands::run_recovery_analysis(&args);
         return;

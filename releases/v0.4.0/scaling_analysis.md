@@ -17,7 +17,7 @@ In alpha-beta search:
 - **Memory**: Unified architecture with shared L2 cache
 - **Threading**: Rayon thread pool with root-level parallelism
 
-- **Engine**: Devi v0.3.0 (perft-validated through depth 7)
+- **Engine**: Devi v0.4.0 (perft-validated through depth 7)
 - **Parallelization**: Root-split parallel alpha-beta
 - **Protocol**: 5 warmup runs + 10 measurement runs
 - **Metrics**: Median time, speedup, parallel efficiency
@@ -81,4 +81,4 @@ cd devi-chess-engine && cargo build --release
 This empirically validates the fundamental difference between **strong scaling** (fixed problem, diminishing returns) and **weak scaling** (scaled problem, sustained efficiency). Chess engines naturally follow Gustafson's model: deeper searches with more cores, not faster shallow searches.
 
 ---
-*Hardware: Apple M1 Pro (8P+2E cores) | Engine: Devi v0.3.0*
+*Hardware: Apple M1 Pro (8P+2E cores) | Engine: Devi v0.4.0*

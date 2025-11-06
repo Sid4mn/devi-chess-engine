@@ -2,10 +2,10 @@ use crate::benchmark::statistics::BenchmarkStats;
 use crate::benchmark::timer::time_execution_millis;
 use crate::board::{Board, BoardRepresentation};
 use crate::scheduling::CorePolicy;
-use crate::search::parallel::parallel_search_with_policy;
-use crate::search::parallel::parallel_search_with_fault;
-use crate::search::{search};
 use crate::search::fault_tolerant::with_recovery;
+use crate::search::parallel::parallel_search_with_fault;
+use crate::search::parallel::parallel_search_with_policy;
+use crate::search::search;
 use crate::types::Move;
 
 #[derive(Clone)]
@@ -57,7 +57,12 @@ pub fn run_benchmark_with_policy(config: &BenchmarkConfig) -> Vec<BenchmarkResul
     for &thread_count in &config.thread_counts {
         println!("\n--- Testing {} thread(s) ---", thread_count);
 
-        let stats = benchmark_thread_config_with_policy(thread_count, config, config.core_policy, config.mixed_ratio);
+        let stats = benchmark_thread_config_with_policy(
+            thread_count,
+            config,
+            config.core_policy,
+            config.mixed_ratio,
+        );
         let sps = stats.searches_per_second();
 
         if thread_count == 1 || (thread_count == config.thread_counts[0]) {
@@ -71,7 +76,10 @@ pub fn run_benchmark_with_policy(config: &BenchmarkConfig) -> Vec<BenchmarkResul
         };
         let efficiency = speedup / thread_count as f64 * 100.0;
 
-        println!("  Median: {:.3}ms (std dev: {:.3}ms)", stats.median, stats.std_dev);
+        println!(
+            "  Median: {:.3}ms (std dev: {:.3}ms)",
+            stats.median, stats.std_dev
+        );
         println!("  Range: {:.3}ms - {:.3}ms", stats.min, stats.max);
         println!("  Searches/second: {:.2}", sps);
         println!("  Speedup: {:.2}x", speedup);
@@ -96,15 +104,26 @@ pub fn run_benchmark(config: &BenchmarkConfig) -> Vec<BenchmarkResult> {
     run_benchmark_with_policy(config)
 }
 
-fn benchmark_thread_config_with_policy(thread_count: usize, config: &BenchmarkConfig, policy: CorePolicy, mixed_ratio: f32) -> BenchmarkStats {
+fn benchmark_thread_config_with_policy(
+    thread_count: usize,
+    config: &BenchmarkConfig,
+    policy: CorePolicy,
+    mixed_ratio: f32,
+) -> BenchmarkStats {
     let mut board = Board::new();
 
     // Warmup phase
     println!("  Warming up...");
     for _ in 0..config.warmup_runs {
         board.setup_starting_position();
-        let _ =
-            execute_search_with_policy(&mut board, config.depth, thread_count, policy, mixed_ratio, None); // No panic injection during warmup.
+        let _ = execute_search_with_policy(
+            &mut board,
+            config.depth,
+            thread_count,
+            policy,
+            mixed_ratio,
+            None,
+        ); // No panic injection during warmup.
     }
 
     // Measurement phase
@@ -115,7 +134,14 @@ fn benchmark_thread_config_with_policy(thread_count: usize, config: &BenchmarkCo
         board.setup_starting_position();
 
         let (_, duration_ms) = time_execution_millis(|| {
-            execute_search_with_policy(&mut board, config.depth, thread_count, policy, mixed_ratio, config.inject_panic) // Inject panic during measurement.
+            execute_search_with_policy(
+                &mut board,
+                config.depth,
+                thread_count,
+                policy,
+                mixed_ratio,
+                config.inject_panic,
+            ) // Inject panic during measurement.
         });
 
         samples.push(duration_ms);
@@ -125,7 +151,14 @@ fn benchmark_thread_config_with_policy(thread_count: usize, config: &BenchmarkCo
     BenchmarkStats::from_samples(&samples)
 }
 
-fn execute_search_with_policy(board: &mut Board, depth: u32, thread_count: usize, policy: CorePolicy, mixed_ratio: f32, inject_panic: Option<usize>) -> (Move, i32) {
+fn execute_search_with_policy(
+    board: &mut Board,
+    depth: u32,
+    thread_count: usize,
+    policy: CorePolicy,
+    mixed_ratio: f32,
+    inject_panic: Option<usize>,
+) -> (Move, i32) {
     if inject_panic.is_some() {
         // Wrapper handles retry; search does real work before panic
         let search_fn = || {
@@ -134,12 +167,12 @@ fn execute_search_with_policy(board: &mut Board, depth: u32, thread_count: usize
                 search(&mut b, depth)
             } else {
                 parallel_search_with_fault(
-                    &mut b, 
-                    depth, 
-                    policy, 
-                    thread_count, 
+                    &mut b,
+                    depth,
+                    policy,
+                    thread_count,
                     mixed_ratio,
-                    inject_panic
+                    inject_panic,
                 )
             }
         };
@@ -153,7 +186,6 @@ fn execute_search_with_policy(board: &mut Board, depth: u32, thread_count: usize
     }
 }
 
-
 fn print_summary_with_policy(results: &[BenchmarkResult]) {
     println!("\n=== PERFORMANCE SUMMARY ===");
     println!("Threads |      Policy     | Median Time | Searches/sec | Speedup | Efficiency");
@@ -162,7 +194,7 @@ fn print_summary_with_policy(results: &[BenchmarkResult]) {
     for result in results {
         let policy_name = match result.core_policy {
             CorePolicy::None => "None",
-            CorePolicy::FastBias => "FastBias", 
+            CorePolicy::FastBias => "FastBias",
             CorePolicy::EfficientBias => "EfficientBias",
             CorePolicy::Mixed => "Mixed",
         };

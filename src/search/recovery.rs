@@ -9,10 +9,12 @@ impl CheckpointManager {
     pub fn new(interval: usize) -> Self {
         Self { interval }
     }
-    
+
     // Stub methods - not used in simplified recovery
     pub fn save(&self, _worker_id: usize, _checkpoint: SearchCheckpoint) {}
-    pub fn get(&self, _worker_id: usize) -> Option<SearchCheckpoint> { None }
+    pub fn get(&self, _worker_id: usize) -> Option<SearchCheckpoint> {
+        None
+    }
     pub fn clear(&self, _worker_id: usize) {}
 }
 

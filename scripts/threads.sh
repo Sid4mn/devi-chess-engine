@@ -11,7 +11,6 @@ CSV_FILE=benchmarks/speedup.csv
 PNG_FILE=benchmarks/speedup.png
 
 echo "devi Chess Engine - Threads Test Automation"
-echo "========================================="
 
 echo "Hardware Configuration:"
 echo "  Total cores: $(sysctl -n hw.physicalcpu)"
@@ -35,7 +34,6 @@ echo "Running benchmark at depth $DEPTH for threads [1, 2, 4, 6, 8, 10]..."
 
 # Validate CSV was created and is non-empty
 if [[ -f "$CSV_FILE" && -s "$CSV_FILE" ]]; then
-    echo ""
     echo "Benchmark completed successfully"
     echo "Results: $CSV_FILE ($(wc -l < "$CSV_FILE") lines)"
 else

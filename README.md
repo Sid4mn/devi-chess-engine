@@ -11,62 +11,53 @@ Building a chess engine from scratch to understand parallel search algorithms an
 ## Project Philosophy
 **Approach:** Build it, measure it, understand the bottlenecks.
 
-## Study Timeline
-| Version | Focus | Key Result | Details |
-|---------|-------|------------|---------|
-| [v0.3.0](releases/v0.3.0/) | **Heterogeneous scheduling** | **13× P vs E core gap** | [Brief](releases/v0.3.0/project_brief.md) |
-| [v0.4.0](releases/v0.4.0/) | Fault tolerance | All work lost, requires checkpointing. | [Brief](releases/v0.4.0/fault_tolerance_analysis.md) |
-| [v0.4.0](releases/v0.4.0/) | **Scaling laws (Amdahl vs Gustafson)** | **48% serial fraction reduction** | [Brief](releases/v0.4.0/scaling_analysis.md) |
-
-## Performance Status
+## Performance Status (v0.4.0)
 ![Build Status](https://github.com/Sid4mn/devi-chess-engine/workflows/CI/badge.svg)
 
-### Parallel Scaling Results (v0.4.0)
-**Key Finding**: Larger problems scale better - increasing search depth from 4 to 7 reduces serial fraction by 48%, enabling 6.73× speedup (vs 4.56×) on 10 cores.
+## v0.4.0 - Performance Characterization
+
+Three studies on parallel chess search:
+
+### 1. Fault Tolerance
+**100% overhead** - Rayon's all-or-nothing model discards all parallel work on panic.
+
+[Details](releases/v0.4.0/fault_tolerance_analysis.md)
+
+### 2. Scaling Laws
+**48% serial reduction** (depth 4 -> 7) - Gustafson's Law dominates as problems scale.
 
 ![Speedup Comparison](benchmarks/scaling_analysis/speedup_comparison.png)
-![Efficiency Comparison](benchmarks/scaling_analysis/efficiency_comparison.png)
 
-### Fault Tolerance Results (v0.4.0)
-**Key Finding**: Mid-computation thread failure causes 100% overhead due to Rayon's all-or-nothing model. Establishes baseline for future checkpoint-based recovery.
+[Details](releases/v0.4.0/scaling_analysis.md)
 
-| Scenario | Time (ms) | Overhead | Best Move | Notes |
-|----------|-----------|----------|-----------|-------|
-| Baseline | 416.5 | 0% | f2f4 | Direct parallel search |
-| Wrapper only | 437.0 | +4.9% | f2f4 | Negligible wrapper cost |
-| **With panic** | **833.6** | **+100.1%** | **f2f4** | **All parallel work lost** |
-| Double work | 884.5 | +112.4% | f2f4 | Validation baseline |
+### 3. Heterogeneous Scheduling
+**12.8x P/E gap** - E-cores unsuitable for branch-heavy search.
 
-```
-M1 Pro | Depth comparison
-
-Policy          Searches/sec    Relative    
-None (OS)       2.23            100%        
-FastBias        2.29            103%        
-EfficientBias   0.18            8%     <- 13× slower
-Mixed           1.08            48%    <- Critical-path bottleneck
-```
 ![Heterogeneous Impact](benchmarks/heterogeneous_impact.png)
-
+```
+8 threads | Depth 7:
+  P-cores (Fast):     2.08 searches/sec
+  E-cores (Efficient): 0.17 searches/sec (12.8x slower)
+  Mixed (80/20):       1.42 searches/sec (65% vs 78% expected)
+```
+[Details](releases/v0.4.0/core_pinning_analysis.md)
 
 ## Quick Start
-
 ```bash
 # Clone and build
 git clone https://github.com/Sid4mn/devi-chess-engine.git
-cd devi-chess-engine && cargo build --release
+cd chess-engine-rust && cargo build --release
 
-# Reproduce scaling analysis
-./scripts/analysis/multi_depth_scaling.sh
-
-# Or run specific benchmarks
-./target/release/devi --benchmark --benchmark-sweep --depth 7
+# Reproduce all v0.4.0 analyses
+./target/release/devi --fault-analysis --depth 7 --threads 8
+./scripts/analysis/multi_depth_scaling.sh  
+./scripts/heterogeneous.sh
 ```
 
 ### Performance Results
 - **Single thread baseline**: 0.37 searches/sec (depth 7)
-- **Peak speedup**: 6.73× on 10 threads (depth 7, 67.3% efficiency)
-- **Sweet spot**: 6.23× on 8 P-cores (depth 7, 77.8% efficiency)
+- **Peak speedup**: 6.73x on 10 threads (depth 7, 67.3% efficiency)
+- **Sweet spot**: 6.23x on 8 P-cores (depth 7, 77.8% efficiency)
 - **Methodology**: 5 warmup + 10 measurement runs, median timing with std dev reporting
 
 **Hardware**: Apple M1 Pro (8 performance + 2 efficiency cores), lock-free parallel search via Rayon
@@ -186,13 +177,13 @@ Foundation & Correctness **COMPLETED**
 
 | Depth | Nodes         | Status |
 |-------|-------------  |------- |
-| 1     | 20            |   ✅   |
-| 2     | 400           |   ✅   |
-| 3     | 8,902         |   ✅   |
-| 4     | 197,281       |   ✅   |
-| 5     | 4,865,609     |   ✅   |
-| 6     | 119,060,324   |   ✅   |
-| 7     | 3,195,901,860 |   ✅   |
+| 1     | 20            | [PASS] |
+| 2     | 400           | [PASS] |
+| 3     | 8,902         | [PASS] |
+| 4     | 197,281       | [PASS] |
+| 5     | 4,865,609     | [PASS] |
+| 6     | 119,060,324   | [PASS] |
+| 7     | 3,195,901,860 | [PASS] |
 
 
 Parallel Scalability **COMPLETED**
@@ -228,20 +219,23 @@ Heterogeneous Core Scheduling **COMPLETED**
 5. **PV-split parallelization** with core-aware work distribution (PV nodes -> P-cores)
 6. **Opening book** and endgame tablebase integration
 
-### Fault Tolerance Results
-```
-timestamp,depth,threads,scenario,median_ms,overhead_pct,move,score,min_ms,max_ms
-2025-11-05_18:45:58,7,10,baseline,416.541,0.00,f2f4,0,385.068,449.377
-2025-11-05_18:45:58,7,10,zero_overhead,436.952,4.90,f2f4,0,428.033,446.038
-2025-11-05_18:45:58,7,10,with_panic,833.579,100.12,f2f4,0,813.217,899.359
-2025-11-05_18:45:58,7,10,double_work,884.543,112.35,f2f4,0,861.157,900.324
-,,,,,,,,,
+## Raw Data
+
+### Fault Tolerance (v0.4.0)
+```csv
+timestamp,depth,threads,scenario,median_ms,overhead_pct,move,score
+2025-11-05_18:45:58,7,8,baseline,416.541,0.00,f2f4,0
+2025-11-05_18:45:58,7,8,with_panic,833.579,100.12,f2f4,0
 ```
 
-## Release History
-- **[v0.4.0](releases/v0.4.0/)**: Amdahl vs Gustafson scaling analysis - 48% serial fraction reduction
-- **[v0.3.0](releases/v0.3.0/)**: Add Heterogeneous core scheduling policies
-- **[v0.2.3-fault](releases/v0.2.3-fault/)**: Fault tolerance with panic recovery
+### Heterogeneous Scheduling (v0.4.0)  
+```csv
+timestamp,threads,policy,median_ms,searches_per_sec
+2025-11-05_21:57:21,8,None,458.121,2.18
+2025-11-05_21:57:29,8,FastBias,480.478,2.08
+2025-11-05_21:59:06,8,EfficientBias,5961.903,0.17
+2025-11-05_21:59:17,8,Mixed,704.135,1.42
+```
 
 ## Contributing
 This is primarily a learning project, but suggestions and discussions are welcome!

@@ -1,12 +1,12 @@
 use core::fmt;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Color {
     White,
     Black,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)] 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PieceType {
     Pawn,
     Knight,
@@ -82,7 +82,7 @@ impl fmt::Display for Move {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)] 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Move {
     pub from: Square,
     pub to: Square,
@@ -91,7 +91,12 @@ pub struct Move {
 }
 
 impl Move {
-    pub fn new(_from: Square, _to: Square, special: Option<SpecialMove>, _promo: Option<PieceType>) -> Self {
+    pub fn new(
+        _from: Square,
+        _to: Square,
+        special: Option<SpecialMove>,
+        _promo: Option<PieceType>,
+    ) -> Self {
         Move {
             from: _from,
             to: _to,

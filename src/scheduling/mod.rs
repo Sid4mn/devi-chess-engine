@@ -61,7 +61,12 @@ impl HeterogeneousScheduler {
 }
 
 #[cfg(target_os = "macos")]
-fn apply_qos_for_thread(policy: CorePolicy, worker_index: usize, total_threads: usize, mixed_ratio: f32) {
+fn apply_qos_for_thread(
+    policy: CorePolicy,
+    worker_index: usize,
+    total_threads: usize,
+    mixed_ratio: f32,
+) {
     let qos_class = match policy {
         CorePolicy::None => return,
         CorePolicy::FastBias => qos_class_t::QOS_CLASS_USER_INITIATED,
@@ -81,8 +86,11 @@ fn apply_qos_for_thread(policy: CorePolicy, worker_index: usize, total_threads: 
     }
 }
 
-
-pub fn create_pool_for_policy(policy: CorePolicy, threads: usize, mixed_ratio: f32) -> rayon::ThreadPool {
+pub fn create_pool_for_policy(
+    policy: CorePolicy,
+    threads: usize,
+    mixed_ratio: f32,
+) -> rayon::ThreadPool {
     let scheduler = HeterogeneousScheduler::new(policy, threads, mixed_ratio);
 
     match scheduler.create_thread_pool() {

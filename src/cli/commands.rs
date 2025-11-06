@@ -4,10 +4,10 @@ use crate::cli::Cli;
 use crate::evaluation::evaluate;
 use crate::moves::{perft, perft_divide, perft_parallel};
 use crate::scheduling::CorePolicy;
-use crate::search::parallel::parallel_search_with_policy;
-use crate::search::parallel::parallel_search_with_fault;
-use crate::search::{parallel_search, search};
 use crate::search::fault_tolerant::with_recovery;
+use crate::search::parallel::parallel_search_with_fault;
+use crate::search::parallel::parallel_search_with_policy;
+use crate::search::{parallel_search, search};
 use rayon;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
@@ -36,7 +36,7 @@ pub fn run_full_benchmark(args: &Cli) {
             vec![args.threads]
         }
     };
-    
+
     let config = BenchmarkConfig {
         depth: args.depth,
         warmup_runs: args.warmup,
@@ -77,7 +77,7 @@ pub fn run_single_search(args: &Cli) {
     // Wrap with recovery if panic injection requested
     let (best_move, _score) = if args.inject_panic.is_some() {
         println!("Fault injection enabled at move {:?}", args.inject_panic);
-        
+
         // Clone board for recovery closure
         let search_fn = || {
             let mut b = board.clone();
@@ -112,22 +112,32 @@ pub fn run_recovery_analysis(args: &Cli) {
     let start = Instant::now();
     let (mv1, score1) = parallel_search(&mut board, args.depth);
     let time1 = start.elapsed();
-    println!("Move: {}, Score: {}, Time: {:.3}ms", mv1, score1, time1.as_secs_f64() * 1000.0);
+    println!(
+        "Move: {}, Score: {}, Time: {:.3}ms",
+        mv1,
+        score1,
+        time1.as_secs_f64() * 1000.0
+    );
 
     // Test 2: With panic + recovery
     println!("\nTest 2: With panic injection + recovery");
     let start = Instant::now();
-    
+
     // Clone board for recovery closure
     let board_clone = board.clone();
     let search_fn = || {
         let mut b = board_clone.clone();
         parallel_search(&mut b, args.depth)
     };
-    
+
     let (mv2, score2) = with_recovery(search_fn, Some(5));
     let time2 = start.elapsed();
-    println!("Move: {}, Score: {}, Time: {:.3}ms", mv2, score2, time2.as_secs_f64() * 1000.0);
+    println!(
+        "Move: {}, Score: {}, Time: {:.3}ms",
+        mv2,
+        score2,
+        time2.as_secs_f64() * 1000.0
+    );
 
     // Verify correctness
     println!("\n=== CORRECTNESS CHECK ===");
@@ -136,7 +146,7 @@ pub fn run_recovery_analysis(args: &Cli) {
     } else {
         println!("Move preserved: {}", mv1);
     }
-    
+
     if score1 != score2 {
         println!("WARNING: Score changed! {} -> {}", score1, score2);
     } else {
@@ -151,7 +161,10 @@ pub fn run_soak_test(args: &Cli) {
     use std::time::Instant;
 
     println!("--- SOAK TEST ---");
-    println!("Threads: {}, Depth: {}, Iterations: {}", args.threads, args.depth, args.runs);
+    println!(
+        "Threads: {}, Depth: {}, Iterations: {}",
+        args.threads, args.depth, args.runs
+    );
 
     let mut samples_ms: Vec<f64> = Vec::new();
 
@@ -209,7 +222,16 @@ pub fn run_soak_test(args: &Cli) {
     }
 }
 
-fn write_soak_files(samples: &[f64],threads: usize,depth: u32,runs: usize,min: f64,median: f64,p95: f64,max: f64) {
+fn write_soak_files(
+    samples: &[f64],
+    threads: usize,
+    depth: u32,
+    runs: usize,
+    min: f64,
+    median: f64,
+    p95: f64,
+    max: f64,
+) {
     // Ensure docs directory exists
     if let Err(e) = create_dir_all("docs") {
         eprintln!("Warning: Failed to create docs directory: {}", e);
@@ -241,7 +263,15 @@ fn write_raw_samples(samples: &[f64]) -> std::io::Result<()> {
     Ok(())
 }
 
-fn write_soak_summary(threads: usize,depth: u32,runs: usize,min: f64,median: f64,p95: f64,max: f64) -> std::io::Result<()> {
+fn write_soak_summary(
+    threads: usize,
+    depth: u32,
+    runs: usize,
+    min: f64,
+    median: f64,
+    p95: f64,
+    max: f64,
+) -> std::io::Result<()> {
     let file = File::create("docs/soak_summary.txt")?;
     let mut writer = BufWriter::new(file);
 
@@ -343,7 +373,11 @@ pub fn export_benchmark_csv_with_policy(results: &[BenchmarkResult], custom_path
     if let Some(parent) = std::path::Path::new(csv_path).parent() {
         if !parent.exists() {
             if let Err(e) = std::fs::create_dir_all(parent) {
-                eprintln!("Warning: Failed to create directory {}: {}", parent.display(), e);
+                eprintln!(
+                    "Warning: Failed to create directory {}: {}",
+                    parent.display(),
+                    e
+                );
                 return export_benchmark_csv_with_policy(results, None);
             }
         }
@@ -361,30 +395,38 @@ pub fn export_benchmark_csv_with_policy(results: &[BenchmarkResult], custom_path
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     // Or use a more readable format:
     let dt = chrono::Local::now();
     let timestamp_str = dt.format("%Y-%m-%d_%H:%M:%S").to_string();
-    
+
     // Write header with timestamp as first column
-    writeln!(file, "timestamp,threads,policy,median_ms,searches_per_sec,speedup,efficiency").unwrap();
+    writeln!(
+        file,
+        "timestamp,threads,policy,median_ms,searches_per_sec,speedup,efficiency"
+    )
+    .unwrap();
 
     // Write data rows
     for result in results {
         writeln!(
             file,
             "{},{},{:?},{:.3},{:.2},{:.2},{:.1}",
-            timestamp_str,  // Add timestamp to each row
+            timestamp_str, // Add timestamp to each row
             result.thread_count,
             result.core_policy,
             result.stats.median,
             result.searches_per_second,
             result.speedup,
             result.efficiency
-        ).unwrap();
+        )
+        .unwrap();
     }
 
-    println!("\nBenchmark results written to {} (timestamp: {})", csv_path, timestamp_str);
+    println!(
+        "\nBenchmark results written to {} (timestamp: {})",
+        csv_path, timestamp_str
+    );
 }
 
 pub fn export_benchmark_csv(results: &[BenchmarkResult], custom_path: Option<&str>) {
@@ -398,7 +440,10 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
     let warmup_per_scenario = 3;
 
     println!("Fault Tolerance Overhead Analysis");
-    println!("Depth: {}, Threads: {}, Iterations: {}\n", depth, threads, iterations);
+    println!(
+        "Depth: {}, Threads: {}, Iterations: {}\n",
+        depth, threads, iterations
+    );
 
     let mut board = Board::new();
     board.setup_starting_position();
@@ -532,11 +577,11 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
                 parallel_search_with_fault(&mut b, depth, CorePolicy::None, threads, 0.0, Some(5))
             }
         };
-        
+
         let start = Instant::now();
         let (mv, score) = with_recovery(search_fn, Some(5));
         let elapsed = start.elapsed().as_secs_f64() * 1000.0;
-        
+
         panic_times.push(elapsed);
         panic_move = mv.to_algebraic();
         panic_score = score;
@@ -564,28 +609,32 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
     for i in 1..=iterations {
         let mut b = board.clone();
         let start = Instant::now();
-        
+
         let (mv1, score1) = if threads == 1 {
             search(&mut b, depth)
         } else {
             parallel_search(&mut b, depth)
         };
-        
+
         let mut b2 = board.clone();
         let (_mv2, _score2) = if threads == 1 {
             search(&mut b2, depth)
         } else {
             parallel_search(&mut b2, depth)
         };
-        
+
         let elapsed = start.elapsed().as_secs_f64() * 1000.0;
         double_times.push(elapsed);
         println!("    Run {}: {:.3}ms (2x work)", i, elapsed);
-        
-        assert_eq!(mv1.to_algebraic(), _mv2.to_algebraic(), "Non-deterministic!");
+
+        assert_eq!(
+            mv1.to_algebraic(),
+            _mv2.to_algebraic(),
+            "Non-deterministic!"
+        );
         assert_eq!(score1, _score2, "Score mismatch!");
     }
-    
+
     double_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let double_median = double_times[double_times.len() / 2];
     let double_overhead = ((double_median - baseline_median) / baseline_median) * 100.0;
@@ -605,14 +654,26 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
 
     println!("SUMMARY:");
     println!("  Baseline:      {:.3}ms", baseline_median);
-    println!("  Zero-overhead: {:.3}ms ({:+.2}%)", zero_median, zero_overhead);
-    println!("  With panic:    {:.3}ms ({:+.2}%)", panic_median, panic_overhead);
-    println!("  Double work:   {:.3}ms ({:+.2}%)", double_median, double_overhead);
-    
-    let correctness_passed = results.iter().all(|r| 
-        r.best_move == baseline_move && r.score == baseline_score
+    println!(
+        "  Zero-overhead: {:.3}ms ({:+.2}%)",
+        zero_median, zero_overhead
     );
-    println!("  Correctness:   {}", if correctness_passed { "PASS" } else { "FAIL" });
+    println!(
+        "  With panic:    {:.3}ms ({:+.2}%)",
+        panic_median, panic_overhead
+    );
+    println!(
+        "  Double work:   {:.3}ms ({:+.2}%)",
+        double_median, double_overhead
+    );
+
+    let correctness_passed = results
+        .iter()
+        .all(|r| r.best_move == baseline_move && r.score == baseline_score);
+    println!(
+        "  Correctness:   {}",
+        if correctness_passed { "PASS" } else { "FAIL" }
+    );
     println!("\nResults exported to: {}", csv_path);
 }
 
@@ -624,7 +685,11 @@ fn export_fault_csv(results: &[FaultMeasurement], path: &str, depth: u32, thread
     let mut file = std::fs::File::create(path).unwrap();
     let ts = chrono::Local::now().format("%Y-%m-%d_%H:%M:%S").to_string();
 
-    writeln!(file, "timestamp,depth,threads,scenario,median_ms,overhead_pct,move,score,min_ms,max_ms").unwrap();
+    writeln!(
+        file,
+        "timestamp,depth,threads,scenario,median_ms,overhead_pct,move,score,min_ms,max_ms"
+    )
+    .unwrap();
 
     let baseline_ms = results[0].median_ms;
     for r in results {
@@ -633,15 +698,23 @@ fn export_fault_csv(results: &[FaultMeasurement], path: &str, depth: u32, thread
         } else {
             ((r.median_ms - baseline_ms) / baseline_ms) * 100.0
         };
-        
+
         let min_ms = r.times_ms.iter().cloned().fold(f64::INFINITY, f64::min);
         let max_ms = r.times_ms.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        
+
         writeln!(
             file,
             "{},{},{},{},{:.3},{:.2},{},{},{:.3},{:.3}",
-            ts, depth, threads, r.scenario, r.median_ms, overhead, 
-            r.best_move, r.score, min_ms, max_ms
+            ts,
+            depth,
+            threads,
+            r.scenario,
+            r.median_ms,
+            overhead,
+            r.best_move,
+            r.score,
+            min_ms,
+            max_ms
         )
         .unwrap();
     }

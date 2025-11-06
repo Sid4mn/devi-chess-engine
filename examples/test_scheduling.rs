@@ -21,7 +21,11 @@ pub fn count_primes(limit: u64) -> u64 {
     count
 }
 
-pub fn test_single_policy(policy: CorePolicy,num_threads: usize,mixed_ratio: f32,) -> BenchmarkStats {
+pub fn test_single_policy(
+    policy: CorePolicy,
+    num_threads: usize,
+    mixed_ratio: f32,
+) -> BenchmarkStats {
     println!("\nTesting Policy: {:?}", policy);
     if matches!(policy, CorePolicy::Mixed) {
         println!(

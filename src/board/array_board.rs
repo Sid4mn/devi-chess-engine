@@ -1,7 +1,7 @@
 use super::traits::{BoardRepresentation, UndoMove};
 use crate::types::*;
 use crate::types::{BK, BQ, WK, WQ};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
