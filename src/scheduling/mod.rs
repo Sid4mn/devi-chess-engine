@@ -112,3 +112,50 @@ pub fn create_pool_for_policy(
 pub fn create_pool_for_policy_simple(policy: CorePolicy, threads: usize) -> rayon::ThreadPool {
     create_pool_for_policy(policy, threads, 0.80) // Default 80% fast cores
 }
+
+/// Create P-core biased pool (high QoS)
+pub fn create_p_core_pool(num_threads: usize) -> Result<rayon::ThreadPool, rayon::ThreadPoolBuildError> {
+    ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .thread_name(|i| format!("p-core-{}", i))
+        .spawn_handler(|thread| {
+            std::thread::spawn(move || {
+                // Set high QoS on macOS
+                #[cfg(target_os = "macos")]
+                {
+                    use std::os::raw::c_uint;
+                    extern "C" {
+                        fn pthread_set_qos_class_self_np(qos_class: c_uint, relative_priority: i32) -> i32;
+                    }
+                    const QOS_CLASS_USER_INITIATED: c_uint = 0x19;
+                    unsafe { pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED, 0); }
+                }
+                thread.run();
+            });
+            Ok(())
+        })
+        .build()
+}
+
+/// Create E-core biased pool (background QoS)
+pub fn create_e_core_pool(num_threads: usize) -> Result<rayon::ThreadPool, rayon::ThreadPoolBuildError> {
+    ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .thread_name(|i| format!("e-core-{}", i))
+        .spawn_handler(|thread| {
+            std::thread::spawn(move || {
+                #[cfg(target_os = "macos")]
+                {
+                    use std::os::raw::c_uint;
+                    extern "C" {
+                        fn pthread_set_qos_class_self_np(qos_class: c_uint, relative_priority: i32) -> i32;
+                    }
+                    const QOS_CLASS_BACKGROUND: c_uint = 0x09;
+                    unsafe { pthread_set_qos_class_self_np(QOS_CLASS_BACKGROUND, 0); }
+                }
+                thread.run();
+            });
+            Ok(())
+        })
+        .build()
+}

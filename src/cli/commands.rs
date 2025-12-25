@@ -7,7 +7,7 @@ use crate::scheduling::CorePolicy;
 use crate::search::fault_tolerant::with_recovery;
 use crate::search::parallel::parallel_search_with_fault;
 use crate::search::parallel::parallel_search_with_policy;
-use crate::search::{parallel_search, search};
+use crate::search::{parallel_search, search, two_phase_search, TwoPhaseConfig}; 
 use rayon;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
@@ -64,7 +64,7 @@ pub fn run_single_search(args: &Cli) {
     let mut board = Board::new();
     board.setup_starting_position();
 
-    println!("Starting position evaluation: {}", evaluate(&board));
+    println!("Starting position evaluation: {}", evaluate(&mut board));
     println!("Searching to depth {}...", args.depth);
 
     let policy = args.core_policy.unwrap_or(CorePolicy::None);
@@ -74,11 +74,34 @@ pub fn run_single_search(args: &Cli) {
         println!("Using core policy: {:?}", p);
     }
 
+    if args.two_phase {
+        let config = TwoPhaseConfig {
+            probe_depth: args.probe_depth,
+            p_core_threads: args.p_cores,
+            e_core_threads: args.e_cores,
+        };
+        
+        println!("Using two-phase scheduler:");
+        println!("  Probe depth: {}", config.probe_depth);
+        println!("  P-cores: {}", config.p_core_threads);
+        println!("  E-cores: {}", config.e_core_threads);
+        
+        let start = Instant::now();
+        let (best_move, score) = two_phase_search(&mut board, args.depth, &config);
+        let elapsed = start.elapsed();
+        
+        println!("\nResult:");
+        println!("  Best move: {}", best_move.to_algebraic());
+        println!("  Score: {}", score);
+        println!("  Time: {:.3}ms", elapsed.as_secs_f64() * 1000.0);
+        return;
+    }
+
     // Wrap with recovery if panic injection requested
-    let (best_move, _score) = if args.inject_panic.is_some() {
+    let start = Instant::now();
+    let (best_move, score) = if args.inject_panic.is_some() {
         println!("Fault injection enabled at move {:?}", args.inject_panic);
 
-        // Clone board for recovery closure
         let search_fn = || {
             let mut b = board.clone();
             if args.threads == 1 {
@@ -89,15 +112,18 @@ pub fn run_single_search(args: &Cli) {
         };
         with_recovery(search_fn, args.inject_panic)
     } else {
-        // No recovery, use board directly
         if args.threads == 1 {
             search(&mut board, args.depth)
         } else {
             parallel_search_with_policy(&mut board, args.depth, policy, args.threads, mixed_ratio)
         }
     };
+    let elapsed = start.elapsed();
 
-    println!("Best move: {} -> {}", best_move.from.0, best_move.to.0);
+    println!("\nResult:");
+    println!("  Best move: {}", best_move.to_algebraic());
+    println!("  Score: {}", score);
+    println!("  Time: {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 pub fn run_recovery_analysis(args: &Cli) {

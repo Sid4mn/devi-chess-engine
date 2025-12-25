@@ -37,18 +37,10 @@ pub struct Cli {
     pub runs: usize,
 
     // HETEROGENEOUS SCHEDULING
-    #[arg(
-        long,
-        value_enum,
-        help = "Core scheduling policy for heterogeneous architectures"
-    )]
+    #[arg(long, value_enum, help = "Core scheduling policy for heterogeneous architectures")]
     pub core_policy: Option<CorePolicy>,
 
-    #[arg(
-        long,
-        default_value_t = 0.80,
-        help = "Ratio of fast cores in mixed mode (0.0-1.0)"
-    )]
+    #[arg(long, default_value_t = 0.80, help = "Ratio of fast cores in mixed mode (0.0-1.0)")]
     pub mixed_ratio: f32,
 
     // FAULT TOLERANCE
@@ -61,11 +53,24 @@ pub struct Cli {
     #[arg(long, help = "Run comprehensive fault tolerance overhead analysis")]
     pub fault_analysis: bool,
 
-    #[arg(
-        long,
-        help = "Custom CSV output path (default: benchmarks/speedup.csv)"
-    )]
+    #[arg(long, help = "Custom CSV output path (default: benchmarks/speedup.csv)")]
     pub csv_output: Option<String>,
+
+    /// Enable two-phase heterogeneous scheduling
+    #[arg(long, default_value_t = false)]
+    pub two_phase: bool,
+
+    /// Probe depth for move classification (1-2 recommended)
+    #[arg(long, default_value_t = 1)]
+    pub probe_depth: u8,
+
+    /// Number of P-core threads for Phase 1
+    #[arg(long, default_value_t = 8)]
+    pub p_cores: usize,
+
+    /// Number of E-core threads for Phase 2
+    #[arg(long, default_value_t = 2)]
+    pub e_cores: usize,
 }
 
 pub fn parse_args() -> Cli {

@@ -140,3 +140,18 @@ impl Default for Move {
         }
     }
 }
+
+/// Phase assignment for root moves
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MovePhase {
+    Heavy,
+    Light,
+}
+
+/// Root move with probe results and phase assignment
+#[derive(Debug, Clone)]
+pub struct ClassifiedMove {
+    pub mv: Move,
+    pub subtree_nodes: u64,
+    pub phase: MovePhase,
+}
