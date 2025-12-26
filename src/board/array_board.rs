@@ -472,13 +472,19 @@ impl BoardRepresentation for ArrayBoard {
     }
 
     fn is_square_attacked(&self, square: Square, by_color: Color) -> bool {
+        // For pawn attacks: we need to check if there's an enemy pawn that could attack this square
+        // White pawns attack diagonally UP (+7 for left, +9 for right from pawn's position)
+        // Black pawns attack diagonally DOWN (-7 for left, -9 for right from pawn's position)
+        // So to find if a square is attacked by a pawn, we check the reverse direction:
+        // - If attacked by White pawn: check squares at -7 and -9 (below the target)
+        // - If attacked by Black pawn: check squares at +7 and +9 (above the target)
         let pawn_offsets = match by_color {
-            Color::White => vec![-7, -9],
-            Color::Black => vec![7, 9],
+            Color::White => vec![-7, -9],  // White pawns attack upward, so check below target
+            Color::Black => vec![7, 9],     // Black pawns attack downward, so check above target
         };
 
         for offset in pawn_offsets {
-            let attack_from = square.0 as i8 - offset;
+            let attack_from = square.0 as i8 + offset;  // + not - !
             if attack_from >= 0 && attack_from < 64 {
                 let file_diff = ((square.0 % 8) as i8 - (attack_from % 8)).abs();
                 if file_diff == 1 {
@@ -601,13 +607,276 @@ impl BoardRepresentation for ArrayBoard {
         false
     }
 
-    fn to_fen(&self) -> String {
-        todo!("Implement to_fen")
+    fn count_attackers(&self, square: Square, by_color: Color) -> u8 {
+        let mut count = 0;
+
+        // Check for pawn attacks
+        let pawn_offsets = match by_color {
+            Color::White => [-7, -9],
+            Color::Black => [7, 9],
+        };
+        for offset in pawn_offsets {
+            let attack_from = square.0 as i8 + offset;
+            if attack_from >= 0 && attack_from < 64 {
+                let file_diff = ((square.0 % 8) as i8 - (attack_from % 8)).abs();
+                if file_diff == 1 {
+                    if let Some(piece) = self.get_piece(Square(attack_from as u8)) {
+                        if piece.piece_type == PieceType::Pawn && piece.color == by_color {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check for knight attacks
+        let knight_offsets = [17, 15, 10, 6, -6, -10, -15, -17];
+        for offset in knight_offsets {
+            let attack_from = square.0 as i8 - offset;
+            if attack_from >= 0 && attack_from < 64 {
+                let from_file = (attack_from % 8) as i8;
+                let from_rank = (attack_from / 8) as i8;
+                let to_file = (square.0 % 8) as i8;
+                let to_rank = (square.0 / 8) as i8;
+                if (from_file - to_file).abs() <= 2 && (from_rank - to_rank).abs() <= 2 {
+                    if let Some(piece) = self.get_piece(Square(attack_from as u8)) {
+                        if piece.piece_type == PieceType::Knight && piece.color == by_color {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check orthogonal directions (rook/queen)
+        let orthogonal_dirs = [1, -1, 8, -8];
+        for dir in orthogonal_dirs {
+            let mut pos = square.0 as i8;
+            let file = pos % 8;
+            loop {
+                pos += dir;
+                if pos < 0 || pos >= 64 {
+                    break;
+                }
+                let new_file = pos % 8;
+                if dir == 1 && new_file <= file {
+                    break;
+                }
+                if dir == -1 && new_file >= file {
+                    break;
+                }
+                if let Some(piece) = self.get_piece(Square(pos as u8)) {
+                    if piece.color == by_color
+                        && (piece.piece_type == PieceType::Rook
+                            || piece.piece_type == PieceType::Queen)
+                    {
+                        count += 1;
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Check diagonal directions (bishop/queen)
+        let diagonal_dirs = [7, -7, 9, -9];
+        for dir in diagonal_dirs {
+            let mut pos = square.0 as i8;
+            let file = pos % 8;
+            let rank = pos / 8;
+            loop {
+                pos += dir;
+                if pos < 0 || pos >= 64 {
+                    break;
+                }
+                let new_file = pos % 8;
+                let new_rank = pos / 8;
+                if (file - new_file).abs() != (rank - new_rank).abs() {
+                    break;
+                }
+                if let Some(piece) = self.get_piece(Square(pos as u8)) {
+                    if piece.color == by_color
+                        && (piece.piece_type == PieceType::Bishop
+                            || piece.piece_type == PieceType::Queen)
+                    {
+                        count += 1;
+                    }
+                    break;
+                }
+            }
+        }
+
+        count
     }
-    fn from_fen(_fen: &str) -> Result<Self, String>
+
+    fn to_fen(&self) -> String {
+        let mut fen = String::new();
+        
+        // Piece placement (from rank 8 to rank 1)
+        for rank in (0..8).rev() {
+            let mut empty_count = 0;
+            for file in 0..8 {
+                let square = Square(rank * 8 + file);
+                if let Some(piece) = self.get_piece(square) {
+                    if empty_count > 0 {
+                        fen.push_str(&empty_count.to_string());
+                        empty_count = 0;
+                    }
+                    let c = match (piece.piece_type, piece.color) {
+                        (PieceType::Pawn, Color::White) => 'P',
+                        (PieceType::Knight, Color::White) => 'N',
+                        (PieceType::Bishop, Color::White) => 'B',
+                        (PieceType::Rook, Color::White) => 'R',
+                        (PieceType::Queen, Color::White) => 'Q',
+                        (PieceType::King, Color::White) => 'K',
+                        (PieceType::Pawn, Color::Black) => 'p',
+                        (PieceType::Knight, Color::Black) => 'n',
+                        (PieceType::Bishop, Color::Black) => 'b',
+                        (PieceType::Rook, Color::Black) => 'r',
+                        (PieceType::Queen, Color::Black) => 'q',
+                        (PieceType::King, Color::Black) => 'k',
+                    };
+                    fen.push(c);
+                } else {
+                    empty_count += 1;
+                }
+            }
+            if empty_count > 0 {
+                fen.push_str(&empty_count.to_string());
+            }
+            if rank > 0 {
+                fen.push('/');
+            }
+        }
+        
+        // Side to move
+        fen.push(' ');
+        fen.push(match self.to_move {
+            Color::White => 'w',
+            Color::Black => 'b',
+        });
+        
+        // Castling rights
+        fen.push(' ');
+        if self.castling_rights == 0 {
+            fen.push('-');
+        } else {
+            if self.castling_rights & WK != 0 { fen.push('K'); }
+            if self.castling_rights & WQ != 0 { fen.push('Q'); }
+            if self.castling_rights & BK != 0 { fen.push('k'); }
+            if self.castling_rights & BQ != 0 { fen.push('q'); }
+        }
+        
+        // En passant
+        fen.push(' ');
+        if let Some(ep) = self.en_passant {
+            fen.push_str(&ep.to_alg());
+        } else {
+            fen.push('-');
+        }
+        
+        // Halfmove clock and fullmove number
+        fen.push_str(&format!(" {} {}", self.halfmove_clock, self.fullmove_clock));
+        
+        fen
+    }
+    
+    fn from_fen(fen: &str) -> Result<Self, String>
     where
         Self: Sized,
     {
-        todo!("Implement from_fen")
+        let parts: Vec<&str> = fen.split_whitespace().collect();
+        if parts.len() < 4 {
+            return Err("FEN must have at least 4 parts".to_string());
+        }
+        
+        let mut board = ArrayBoard::new();
+        board.clear();
+        
+        // Parse piece placement
+        let ranks: Vec<&str> = parts[0].split('/').collect();
+        if ranks.len() != 8 {
+            return Err("FEN must have 8 ranks".to_string());
+        }
+        
+        for (rank_idx, rank_str) in ranks.iter().enumerate() {
+            let rank = 7 - rank_idx; // FEN starts from rank 8
+            let mut file = 0u8;
+            
+            for c in rank_str.chars() {
+                if file >= 8 {
+                    return Err(format!("Too many squares in rank {}", rank + 1));
+                }
+                
+                if let Some(digit) = c.to_digit(10) {
+                    file += digit as u8;
+                } else {
+                    let (piece_type, color) = match c {
+                        'P' => (PieceType::Pawn, Color::White),
+                        'N' => (PieceType::Knight, Color::White),
+                        'B' => (PieceType::Bishop, Color::White),
+                        'R' => (PieceType::Rook, Color::White),
+                        'Q' => (PieceType::Queen, Color::White),
+                        'K' => (PieceType::King, Color::White),
+                        'p' => (PieceType::Pawn, Color::Black),
+                        'n' => (PieceType::Knight, Color::Black),
+                        'b' => (PieceType::Bishop, Color::Black),
+                        'r' => (PieceType::Rook, Color::Black),
+                        'q' => (PieceType::Queen, Color::Black),
+                        'k' => (PieceType::King, Color::Black),
+                        _ => return Err(format!("Invalid piece character: {}", c)),
+                    };
+                    let square = Square(rank as u8 * 8 + file);
+                    board.set_piece(square, Some(Piece::new(piece_type, color)));
+                    file += 1;
+                }
+            }
+        }
+        
+        // Parse side to move
+        board.to_move = match parts[1] {
+            "w" => Color::White,
+            "b" => Color::Black,
+            _ => return Err(format!("Invalid side to move: {}", parts[1])),
+        };
+        
+        // Parse castling rights
+        board.castling_rights = 0;
+        if parts[2] != "-" {
+            for c in parts[2].chars() {
+                match c {
+                    'K' => board.castling_rights |= WK,
+                    'Q' => board.castling_rights |= WQ,
+                    'k' => board.castling_rights |= BK,
+                    'q' => board.castling_rights |= BQ,
+                    _ => return Err(format!("Invalid castling character: {}", c)),
+                }
+            }
+        }
+        
+        // Parse en passant
+        if parts[3] != "-" {
+            let ep_chars: Vec<char> = parts[3].chars().collect();
+            if ep_chars.len() != 2 {
+                return Err(format!("Invalid en passant square: {}", parts[3]));
+            }
+            let file = ep_chars[0] as u8 - b'a';
+            let rank = ep_chars[1] as u8 - b'1';
+            if file > 7 || rank > 7 {
+                return Err(format!("Invalid en passant square: {}", parts[3]));
+            }
+            board.en_passant = Some(Square(rank * 8 + file));
+        }
+        
+        // Parse halfmove clock (optional)
+        if parts.len() > 4 {
+            board.halfmove_clock = parts[4].parse().unwrap_or(0);
+        }
+        
+        // Parse fullmove number (optional)
+        if parts.len() > 5 {
+            board.fullmove_clock = parts[5].parse().unwrap_or(1);
+        }
+        
+        Ok(board)
     }
 }

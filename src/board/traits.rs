@@ -34,6 +34,7 @@ pub trait BoardRepresentation {
     fn find_king(&self, color: Color) -> Option<Square>;
     fn is_in_check(&self, color: Color) -> bool;
     fn is_square_attacked(&self, square: Square, by_color: Color) -> bool;
+    fn count_attackers(&self, square: Square, by_color: Color) -> u8;
 
     // Board setup/manipulation
     fn setup_starting_position(&mut self);

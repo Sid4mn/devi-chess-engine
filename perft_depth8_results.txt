@@ -1,0 +1,30 @@
+   Compiling devi v0.4.0 (/Users/funinc/Documents/chess-engine-rust/chess-engine-rust)
+warning: unused variable: `timestamp`
+   --> src/cli/commands.rs:420:9
+    |
+420 |     let timestamp = std::time::SystemTime::now()
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_timestamp`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: `devi` (lib) generated 1 warning
+    Finished `release` profile [optimized] target(s) in 2.39s
+     Running `target/release/examples/detailed_perft`
+Parallel Detailed Perft - Starting Position (Depth 1-8)
+========================================================
+
+Depth              Nodes     Captures     E.p.  Castles   Promos     Checks   DblChk      Mates       Time
+-------------------------------------------------------------------------------------------------------------------
+    1                 20            0        0        0        0          0        0          0    18.42µs
+    2                400            0        0        0        0          0        0          0    84.08µs
+    3               8902           34        0        0        0         12        0          0     1.90ms
+    4             197281         1576        0        0        0        469        0          8    10.61ms
+    5            4865609        82719      258        0        0      27351        0        347   177.92ms
+    6          119060324      2812008     5248        0        0     809099       46      10828      4.59s
+    7         3195901860    108329926   319617   883453        0   33103848     1628     435767    126.41s
+    8        84998978956   3523740106  7187977 23605205        0  968981593   147215    9852036   2943.84s
+
+CPW Reference Values:
+Depth 6: nodes=119,060,324 captures=2,812,008 ep=5,248 checks=809,099 mates=10,828
+Depth 7: nodes=3,195,901,860 captures=108,329,926 ep=319,617 castles=883,453 checks=33,103,848 mates=435,767
+Depth 8: nodes=84,998,978,956 captures=3,523,740,106 ep=7,187,977 castles=23,605,205 checks=968,981,593 mates=9,852,036
