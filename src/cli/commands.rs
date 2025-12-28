@@ -7,7 +7,8 @@ use crate::scheduling::CorePolicy;
 use crate::search::fault_tolerant::with_recovery;
 use crate::search::parallel::parallel_search_with_fault;
 use crate::search::parallel::parallel_search_with_policy;
-use crate::search::{parallel_search, search, two_phase_search, TwoPhaseConfig}; 
+use crate::search::probe::ClassificationConfig;
+use crate::search::{parallel_search, search, two_phase_search, two_phase_search_with_metrics, TwoPhaseConfig, TwoPhaseMetrics}; 
 use rayon;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
@@ -79,12 +80,17 @@ pub fn run_single_search(args: &Cli) {
             probe_depth: args.probe_depth,
             p_core_threads: args.p_cores,
             e_core_threads: args.e_cores,
+            classification: ClassificationConfig {
+                heavy_ratio: args.heavy_ratio,
+                light_threshold: args.light_threshold,
+            },
         };
         
         println!("Using two-phase scheduler:");
         println!("  Probe depth: {}", config.probe_depth);
         println!("  P-cores: {}", config.p_core_threads);
         println!("  E-cores: {}", config.e_core_threads);
+        println!("  Heavy ratio: {:.1}", config.classification.heavy_ratio);
         
         let start = Instant::now();
         let (best_move, score) = two_phase_search(&mut board, args.depth, &config);
@@ -417,7 +423,7 @@ pub fn export_benchmark_csv_with_policy(results: &[BenchmarkResult], custom_path
         }
     };
 
-    let timestamp = std::time::SystemTime::now()
+    let _timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
@@ -743,5 +749,351 @@ fn export_fault_csv(results: &[FaultMeasurement], path: &str, depth: u32, thread
             max_ms
         )
         .unwrap();
+    }
+}
+
+/// Two-phase benchmark result for a single configuration
+#[derive(Debug, Clone)]
+pub struct TwoPhaseBenchmarkResult {
+    pub config_name: String,
+    pub position_name: String,
+    pub probe_depth: u8,
+    pub heavy_ratio: f32,
+    pub samples: Vec<TwoPhaseMetrics>,
+    pub median_total_ms: f64,
+    pub median_probe_ms: f64,
+    pub median_phase1_ms: f64,
+    pub median_phase2_ms: f64,
+    pub searches_per_second: f64,
+    pub speedup_vs_baseline: f64,
+}
+
+/// Standard test positions for benchmarking
+pub const BENCHMARK_POSITIONS: &[(&str, &str)] = &[
+    ("starting", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
+    ("kiwipete", "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"),
+    ("position4", "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"),
+];
+
+pub fn run_two_phase_benchmark(args: &Cli) {
+    println!("=== TWO-PHASE SCHEDULER BENCHMARK ===\n");
+    
+    let depth = args.depth;
+    let warmup = args.warmup;
+    let runs = args.runs;
+    
+    // Determine positions to test
+    let positions: Vec<(String, String)> = if let Some(ref fen) = args.fen {
+        vec![("custom".to_string(), fen.clone())]
+    } else {
+        BENCHMARK_POSITIONS.iter()
+            .map(|(n, f)| (n.to_string(), f.to_string()))
+            .collect()
+    };
+    
+    // Probe depths to test
+    let probe_depths = vec![1, 2, 3];
+    
+    // Heavy ratios to test (for classification tuning)
+    let heavy_ratios = vec![0.5, 0.6, 0.7, 0.8];
+    
+    let mut all_results: Vec<TwoPhaseBenchmarkResult> = Vec::new();
+    
+    for (pos_name, fen) in &positions {
+        println!("Position: {} ({})", pos_name, fen);
+        println!("{}", "-".repeat(70));
+        
+        let mut board = match Board::from_fen(fen) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("Failed to parse FEN: {}", e);
+                continue;
+            }
+        };
+        
+        // Baseline: 10 threads, no scheduling
+        println!("\n[Baseline] 10 threads, CorePolicy::None");
+        let baseline_result = benchmark_baseline(&mut board, depth, warmup, runs, pos_name);
+        let baseline_sps = baseline_result.searches_per_second;
+        all_results.push(baseline_result);
+        
+        // Small delay to let thread pools fully deallocate
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        
+        // FastBias: P-cores only
+        println!("\n[FastBias] 8 threads, CorePolicy::FastBias");
+        let fast_result = benchmark_fast_bias(&mut board, depth, warmup, runs, pos_name, baseline_sps);
+        all_results.push(fast_result);
+        
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        
+        // Two-phase with probe depth sweep
+        for &probe_depth in &probe_depths {
+            println!("\n[TwoPhase] probe_depth={}, ratio=0.6", probe_depth);
+            let tp_result = benchmark_two_phase(
+                &mut board, depth, warmup, runs, pos_name,
+                probe_depth, 0.6, 0.3, 
+                args.p_cores, args.e_cores,
+                baseline_sps
+            );
+            all_results.push(tp_result);
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        
+        // Classification ratio sweep (with best probe depth)
+        for &ratio in &heavy_ratios {
+            if ratio == 0.6 { continue; } // Already tested
+            println!("\n[TwoPhase] probe_depth=1, ratio={:.1}", ratio);
+            let tp_result = benchmark_two_phase(
+                &mut board, depth, warmup, runs, pos_name,
+                1, ratio, 0.3,
+                args.p_cores, args.e_cores,
+                baseline_sps
+            );
+            all_results.push(tp_result);
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        
+        println!("\n");
+    }
+    
+    // Export CSV
+    let csv_path = args.csv_output.as_deref().unwrap_or("benchmarks/v0.5.0/two_phase_benchmark.csv");
+    export_two_phase_csv(&all_results, csv_path, depth);
+    
+    // Print summary
+    print_two_phase_summary(&all_results);
+}
+
+fn benchmark_baseline(board: &mut Board, depth: u32, warmup: usize, runs: usize, pos_name: &str) -> TwoPhaseBenchmarkResult {
+    // Warmup
+    for _ in 0..warmup {
+        let mut b = board.clone();
+        let _ = parallel_search_with_policy(&mut b, depth, CorePolicy::None, 10, 0.8);
+    }
+    
+    // Measure
+    let mut samples: Vec<TwoPhaseMetrics> = Vec::new();
+    for i in 1..=runs {
+        let mut b = board.clone();
+        let start = Instant::now();
+        let (mv, score) = parallel_search_with_policy(&mut b, depth, CorePolicy::None, 10, 0.8);
+        let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+        
+        let metrics = TwoPhaseMetrics {
+            probe_time_ms: 0.0,
+            phase1_time_ms: elapsed,
+            phase2_time_ms: 0.0,
+            total_time_ms: elapsed,
+            heavy_move_count: 0,
+            light_move_count: 0,
+            best_move: mv.to_algebraic(),
+            score,
+        };
+        samples.push(metrics);
+        print!("  Run {}: {:.1}ms  ", i, elapsed);
+        if i % 5 == 0 { println!(); }
+    }
+    if runs % 5 != 0 { println!(); }
+    
+    let median = median_time(&samples);
+    let sps = 1000.0 / median;
+    
+    TwoPhaseBenchmarkResult {
+        config_name: "baseline".to_string(),
+        position_name: pos_name.to_string(),
+        probe_depth: 0,
+        heavy_ratio: 0.0,
+        samples,
+        median_total_ms: median,
+        median_probe_ms: 0.0,
+        median_phase1_ms: median,
+        median_phase2_ms: 0.0,
+        searches_per_second: sps,
+        speedup_vs_baseline: 1.0,
+    }
+}
+
+fn benchmark_fast_bias(board: &mut Board, depth: u32, warmup: usize, runs: usize, pos_name: &str, baseline_sps: f64) -> TwoPhaseBenchmarkResult {
+    for _ in 0..warmup {
+        let mut b = board.clone();
+        let _ = parallel_search_with_policy(&mut b, depth, CorePolicy::FastBias, 8, 0.8);
+    }
+    
+    let mut samples: Vec<TwoPhaseMetrics> = Vec::new();
+    for i in 1..=runs {
+        let mut b = board.clone();
+        let start = Instant::now();
+        let (mv, score) = parallel_search_with_policy(&mut b, depth, CorePolicy::FastBias, 8, 0.8);
+        let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+        
+        let metrics = TwoPhaseMetrics {
+            probe_time_ms: 0.0,
+            phase1_time_ms: elapsed,
+            phase2_time_ms: 0.0,
+            total_time_ms: elapsed,
+            heavy_move_count: 0,
+            light_move_count: 0,
+            best_move: mv.to_algebraic(),
+            score,
+        };
+        samples.push(metrics);
+        print!("  Run {}: {:.1}ms  ", i, elapsed);
+        if i % 5 == 0 { println!(); }
+    }
+    if runs % 5 != 0 { println!(); }
+    
+    let median = median_time(&samples);
+    let sps = 1000.0 / median;
+    
+    TwoPhaseBenchmarkResult {
+        config_name: "fast_bias".to_string(),
+        position_name: pos_name.to_string(),
+        probe_depth: 0,
+        heavy_ratio: 0.0,
+        samples,
+        median_total_ms: median,
+        median_probe_ms: 0.0,
+        median_phase1_ms: median,
+        median_phase2_ms: 0.0,
+        searches_per_second: sps,
+        speedup_vs_baseline: sps / baseline_sps,
+    }
+}
+
+fn benchmark_two_phase(board: &mut Board, depth: u32, warmup: usize, runs: usize, pos_name: &str,probe_depth: u8, heavy_ratio: f32, light_threshold: f32,p_cores: usize, e_cores: usize, baseline_sps: f64) -> TwoPhaseBenchmarkResult {
+    let config = TwoPhaseConfig {
+        probe_depth,
+        p_core_threads: p_cores,
+        e_core_threads: e_cores,
+        classification: ClassificationConfig {
+            heavy_ratio,
+            light_threshold,
+        },
+    };
+    
+    for _ in 0..warmup {
+        let mut b = board.clone();
+        let _ = two_phase_search(&mut b, depth, &config);
+    }
+    
+    let mut samples: Vec<TwoPhaseMetrics> = Vec::new();
+    for i in 1..=runs {
+        let mut b = board.clone();
+        let (_, _, metrics) = two_phase_search_with_metrics(&mut b, depth, &config);
+        samples.push(metrics.clone());
+        print!("  Run {}: {:.1}ms (probe: {:.1}ms, P1: {:.1}ms, P2: {:.1}ms)  ", 
+            i, metrics.total_time_ms, metrics.probe_time_ms, 
+            metrics.phase1_time_ms, metrics.phase2_time_ms);
+        if i % 2 == 0 { println!(); }
+    }
+    if runs % 2 != 0 { println!(); }
+    
+    let median_total = median_time(&samples);
+    let median_probe = median_of(&samples.iter().map(|s| s.probe_time_ms).collect::<Vec<_>>());
+    let median_p1 = median_of(&samples.iter().map(|s| s.phase1_time_ms).collect::<Vec<_>>());
+    let median_p2 = median_of(&samples.iter().map(|s| s.phase2_time_ms).collect::<Vec<_>>());
+    let sps = 1000.0 / median_total;
+    
+    TwoPhaseBenchmarkResult {
+        config_name: format!("two_phase_p{}_r{}", probe_depth, (heavy_ratio * 10.0) as u8),
+        position_name: pos_name.to_string(),
+        probe_depth,
+        heavy_ratio,
+        samples,
+        median_total_ms: median_total,
+        median_probe_ms: median_probe,
+        median_phase1_ms: median_p1,
+        median_phase2_ms: median_p2,
+        searches_per_second: sps,
+        speedup_vs_baseline: sps / baseline_sps,
+    }
+}
+
+fn median_time(samples: &[TwoPhaseMetrics]) -> f64 {
+    let mut times: Vec<f64> = samples.iter().map(|s| s.total_time_ms).collect();
+    times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let mid = times.len() / 2;
+    if times.len() % 2 == 0 {
+        (times[mid - 1] + times[mid]) / 2.0
+    } else {
+        times[mid]
+    }
+}
+
+fn median_of(values: &[f64]) -> f64 {
+    if values.is_empty() { return 0.0; }
+    let mut sorted = values.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let mid = sorted.len() / 2;
+    if sorted.len() % 2 == 0 {
+        (sorted[mid - 1] + sorted[mid]) / 2.0
+    } else {
+        sorted[mid]
+    }
+}
+
+fn stddev_of(values: &[f64]) -> f64 {
+    if values.len() < 2 { return 0.0; }
+    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    let variance = values.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64;
+    variance.sqrt()
+}
+
+fn export_two_phase_csv(results: &[TwoPhaseBenchmarkResult], path: &str, depth: u32) {
+    if let Some(parent) = std::path::Path::new(path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    
+    let mut file = std::fs::File::create(path).expect("Failed to create CSV file");
+    let ts = chrono::Local::now().format("%Y-%m-%d_%H:%M:%S").to_string();
+    
+    writeln!(file, "timestamp,depth,position,config,probe_depth,heavy_ratio,median_total_ms,median_probe_ms,median_phase1_ms,median_phase2_ms,stddev_ms,searches_per_sec,speedup,heavy_count,light_count").unwrap();
+    
+    for r in results {
+        let times: Vec<f64> = r.samples.iter().map(|s| s.total_time_ms).collect();
+        let stddev = stddev_of(&times);
+        let (heavy, light) = if !r.samples.is_empty() {
+            (r.samples[0].heavy_move_count, r.samples[0].light_move_count)
+        } else {
+            (0, 0)
+        };
+        
+        writeln!(file, "{},{},{},{},{},{:.2},{:.3},{:.3},{:.3},{:.3},{:.3},{:.2},{:.3},{},{}",
+            ts, depth, r.position_name, r.config_name, r.probe_depth, r.heavy_ratio,
+            r.median_total_ms, r.median_probe_ms, r.median_phase1_ms, r.median_phase2_ms,
+            stddev, r.searches_per_second, r.speedup_vs_baseline, heavy, light
+        ).unwrap();
+    }
+    
+    println!("\nResults exported to: {}", path);
+}
+
+fn print_two_phase_summary(results: &[TwoPhaseBenchmarkResult]) {
+    println!("\n=== TWO-PHASE BENCHMARK SUMMARY ===\n");
+    println!("{:<12} {:<20} {:>12} {:>10} {:>10} {:>10} {:>8}",
+        "Position", "Config", "Median(ms)", "Probe(ms)", "P1(ms)", "P2(ms)", "Speedup");
+    println!("{}", "-".repeat(85));
+    
+    for r in results {
+        println!("{:<12} {:<20} {:>12.1} {:>10.1} {:>10.1} {:>10.1} {:>7.2}x",
+            r.position_name, r.config_name, r.median_total_ms,
+            r.median_probe_ms, r.median_phase1_ms, r.median_phase2_ms,
+            r.speedup_vs_baseline);
+    }
+    
+    // Find best config per position
+    let positions: Vec<_> = results.iter().map(|r| r.position_name.clone()).collect::<std::collections::HashSet<_>>().into_iter().collect();
+    
+    println!("\n=== BEST CONFIGURATIONS ===\n");
+    for pos in &positions {
+        let best = results.iter()
+            .filter(|r| &r.position_name == pos)
+            .max_by(|a, b| a.speedup_vs_baseline.partial_cmp(&b.speedup_vs_baseline).unwrap());
+        
+        if let Some(b) = best {
+            println!("{}: {} ({:.2}x speedup, probe_depth={}, heavy_ratio={:.1})",
+                pos, b.config_name, b.speedup_vs_baseline, b.probe_depth, b.heavy_ratio);
+        }
     }
 }

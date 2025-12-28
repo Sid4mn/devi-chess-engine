@@ -9,4 +9,4 @@ pub mod transposition;
 
 pub use fault_tolerant::{should_inject_panic, with_recovery};
 pub use minimax::{alphabeta, search};
-pub use parallel::{parallel_search, parallel_search_with_fault, parallel_search_with_policy, two_phase_search, TwoPhaseConfig};
+pub use parallel::{parallel_search, parallel_search_with_fault, parallel_search_with_policy, two_phase_search, TwoPhaseConfig, TwoPhaseMetrics, two_phase_search_with_metrics};

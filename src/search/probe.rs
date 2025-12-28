@@ -2,6 +2,24 @@ use crate::board::{Board, BoardRepresentation};
 use crate::moves::generate_legal_moves;
 use crate::types::{ClassifiedMove, Move, MovePhase};
 
+/// Configuration for move classification heuristics
+#[derive(Clone, Copy, Debug)]
+pub struct ClassificationConfig {
+    /// Ratio of moves to classify as "heavy" (0.0-1.0, default 0.6 = top 60%)
+    pub heavy_ratio: f32,
+    /// If light moves exceed this % of total nodes, move all to P-cores (default 0.3)
+    pub light_threshold: f32,
+}
+
+impl Default for ClassificationConfig {
+    fn default() -> Self {
+        Self {
+            heavy_ratio: 0.6,
+            light_threshold: 0.3,
+        }
+    }
+}
+
 /// Count nodes in a subtree at given depth (no alpha-beta, just node counting)
 pub fn probe_move(board: &Board, mv: &Move, depth: u8) -> u64 {
     if depth == 0 {
@@ -40,6 +58,10 @@ pub fn probe_root_moves(board: &Board, moves: &[Move], depth: u8) -> Vec<(Move, 
 }
 
 pub fn classify_moves(probed: Vec<(Move, u64)>) -> (Vec<ClassifiedMove>, Vec<ClassifiedMove>) {
+    classify_moves_with_config(probed, &ClassificationConfig::default())
+}
+
+pub fn classify_moves_with_config(probed: Vec<(Move, u64)>, config: &ClassificationConfig) -> (Vec<ClassifiedMove>, Vec<ClassifiedMove>) {
     if probed.is_empty() {
         return (vec![], vec![]);
     }
@@ -62,11 +84,9 @@ pub fn classify_moves(probed: Vec<(Move, u64)>) -> (Vec<ClassifiedMove>, Vec<Cla
     let mut sorted_counts: Vec<u64> = probed.iter().map(|(_, n)| *n).collect();
     sorted_counts.sort_unstable_by(|a, b| b.cmp(a));  // Descending
     
-    let heavy_count = (n * 6) / 10;
+    let heavy_count = ((n as f32) * config.heavy_ratio) as usize;
     let heavy_count = heavy_count.max(1);
     let threshold = sorted_counts.get(heavy_count - 1).copied().unwrap_or(0);
-    
-    println!("    Heavy threshold: top {} moves (>= {} nodes)", heavy_count, threshold);
     
     let mut heavy = Vec::new();
     let mut light = Vec::new();
@@ -91,10 +111,9 @@ pub fn classify_moves(probed: Vec<(Move, u64)>) -> (Vec<ClassifiedMove>, Vec<Cla
     
     let total_nodes: u64 = heavy.iter().chain(light.iter()).map(|cm| cm.subtree_nodes).sum();
     let light_nodes: u64 = light.iter().map(|cm| cm.subtree_nodes).sum();
+    let light_pct = if total_nodes > 0 { light_nodes as f32 / total_nodes as f32 } else { 0.0 };
     
-    if !light.is_empty() && total_nodes > 0 && light_nodes * 100 / total_nodes > 30 {
-        println!("    Light moves too expensive ({}%), moving all to P-cores", 
-                 light_nodes * 100 / total_nodes);
+    if !light.is_empty() && light_pct > config.light_threshold {
         for mut cm in light.drain(..) {
             cm.phase = MovePhase::Heavy;
             heavy.push(cm);

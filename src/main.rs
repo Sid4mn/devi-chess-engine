@@ -19,6 +19,11 @@ fn run_command(args: &cli::Cli) {
         return;
     }
 
+    if args.two_phase_benchmark {
+        cli::commands::run_two_phase_benchmark(&args);
+        return;
+    }
+
     if args.inject_panic.is_some() {
         if args.benchmark {
             // Run benchmark WITH fault injection

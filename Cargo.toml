@@ -1,6 +1,6 @@
 [package]
 name = "devi"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 authors = ["Siddhant Shettiwar <sid4mndev@gmail.com>"]
 keywords = ["chess", "engine", "parallel", "search"]

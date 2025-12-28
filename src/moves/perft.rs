@@ -70,7 +70,7 @@ pub fn perft(board: &mut Board, depth: u32) -> u64 {
     nodes
 }
 
-/// Detailed perft that counts captures, en passant, castles, promotions, checks, and checkmates
+/// Detailed giates
 pub fn perft_detailed(board: &mut Board, depth: u32) -> PerftStats {
     let mut stats = PerftStats::new();
     

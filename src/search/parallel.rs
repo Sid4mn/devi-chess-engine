@@ -4,18 +4,21 @@ use crate::scheduling::{create_e_core_pool, create_p_core_pool, create_pool_for_
 use crate::search::fault_tolerant::should_inject_panic;
 use crate::search::minimax::alphabeta;
 use crate::search::minimax::MATE_SCORE;
-use crate::search::probe::{classify_moves, probe_root_moves};
+use crate::search::probe::{classify_moves_with_config, probe_root_moves, ClassificationConfig};
 use crate::types::*;
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::time::Instant;
 
 static MOVE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 static SHOULD_PANIC: AtomicBool = AtomicBool::new(false);
 
+#[derive(Clone, Copy, Debug)]
 pub struct TwoPhaseConfig {
     pub probe_depth: u8,
     pub p_core_threads: usize,
     pub e_core_threads: usize,
+    pub classification: ClassificationConfig,
 }
 
 impl Default for TwoPhaseConfig {
@@ -24,8 +27,40 @@ impl Default for TwoPhaseConfig {
             probe_depth: 1,
             p_core_threads: 8,
             e_core_threads: 2,
+            classification: ClassificationConfig::default(),
         }
     }
+}
+
+/// Decide whether to use two-phase scheduling based on move count.
+/// Returns optimal config if beneficial, None if baseline is better.
+pub fn should_use_two_phase(legal_move_count: usize) -> Option<TwoPhaseConfig> {
+    match legal_move_count {
+        0..=10 => None, // Skip two-phase: too few moves to classify
+        11..=25 => Some(TwoPhaseConfig {
+            probe_depth: 2,
+            classification: ClassificationConfig { heavy_ratio: 0.6, light_threshold: 0.3 },
+            ..Default::default()
+        }),
+        _ => Some(TwoPhaseConfig {
+            probe_depth: 1,
+            classification: ClassificationConfig { heavy_ratio: 0.8, light_threshold: 0.3 },
+            ..Default::default()
+        }),
+    }
+}
+
+/// Detailed timing metrics from two-phase search
+#[derive(Clone, Debug, Default)]
+pub struct TwoPhaseMetrics {
+    pub probe_time_ms: f64,
+    pub phase1_time_ms: f64,
+    pub phase2_time_ms: f64,
+    pub total_time_ms: f64,
+    pub heavy_move_count: usize,
+    pub light_move_count: usize,
+    pub best_move: String,
+    pub score: i32,
 }
 
 pub fn parallel_search(board: &mut Board, depth: u32) -> (Move, i32) {
@@ -105,6 +140,19 @@ pub fn parallel_search_with_fault(board: &mut Board,depth: u32,policy: CorePolic
 }
 
 pub fn two_phase_search(board: &mut Board, depth: u32, config: &TwoPhaseConfig) -> (Move, i32) {
+    let (mv, score, _) = two_phase_search_with_metrics(board, depth, config);
+    (mv, score)
+}
+
+/// Two-phase search with detailed timing metrics for benchmarking
+pub fn two_phase_search_with_metrics(
+    board: &mut Board,
+    depth: u32,
+    config: &TwoPhaseConfig,
+) -> (Move, i32, TwoPhaseMetrics) {
+    let total_start = Instant::now();
+    let mut metrics = TwoPhaseMetrics::default();
+    
     let current_color = board.to_move();
     let legal_moves = generate_legal_moves(board, current_color);
     
@@ -115,50 +163,52 @@ pub fn two_phase_search(board: &mut Board, depth: u32, config: &TwoPhaseConfig) 
         } else {
             0
         };
-        return (dummy, score);
+        metrics.total_time_ms = total_start.elapsed().as_secs_f64() * 1000.0;
+        return (dummy, score, metrics);
     }
     
-    let probe_depth = config.probe_depth;
-    let probed = probe_root_moves(board, &legal_moves, probe_depth);
+    // Probe phase
+    let probe_start = Instant::now();
+    let probed = probe_root_moves(board, &legal_moves, config.probe_depth);
+    metrics.probe_time_ms = probe_start.elapsed().as_secs_f64() * 1000.0;
     
-    let (heavy_moves, light_moves) = classify_moves(probed);
-    
-    println!("  Classification: {} heavy, {} light moves", heavy_moves.len(), light_moves.len());
+    let (heavy_moves, light_moves) = classify_moves_with_config(probed, &config.classification);
+    metrics.heavy_move_count = heavy_moves.len();
+    metrics.light_move_count = light_moves.len();
     
     let p_pool = create_p_core_pool(config.p_core_threads)
         .expect("Failed to create P-core pool");
     
+    // Phase 1: Heavy moves on P-cores
+    let phase1_start = Instant::now();
     let (phase1_best_move, phase1_best_score) = if !heavy_moves.is_empty() {
-        let result = p_pool.install(|| {
+        p_pool.install(|| {
             search_moves_parallel(board, &heavy_moves, depth, i32::MIN + 1)
-        });
-        println!("  Phase 1 complete: {} (score: {})", result.0.to_algebraic(), result.1);
-        result
+        })
     } else {
-        println!("  Phase 1 skipped: no heavy moves");
         (Move::default(), i32::MIN + 1)
     };
+    metrics.phase1_time_ms = phase1_start.elapsed().as_secs_f64() * 1000.0;
     
+    // Phase 2: Light moves on E-cores
+    let phase2_start = Instant::now();
     let (phase2_best_move, phase2_best_score) = if !light_moves.is_empty() {
         let e_pool = create_e_core_pool(config.e_core_threads)
             .expect("Failed to create E-core pool");
         
-        // Use Phase 1's score as alpha bound (if valid)
         let alpha = if phase1_best_score > i32::MIN + 1 {
             phase1_best_score
         } else {
             i32::MIN + 1
         };
         
-        let result = e_pool.install(|| {
+        e_pool.install(|| {
             search_moves_parallel(board, &light_moves, depth, alpha)
-        });
-        println!("  Phase 2 complete: {} (score: {})", result.0.to_algebraic(), result.1);
-        result
+        })
     } else {
-        println!("  Phase 2 skipped: no light moves");
         (Move::default(), i32::MIN + 1)
     };
+    metrics.phase2_time_ms = phase2_start.elapsed().as_secs_f64() * 1000.0;
     
     let (best_move, best_score) = if phase2_best_score > phase1_best_score {
         (phase2_best_move, phase2_best_score)
@@ -166,16 +216,22 @@ pub fn two_phase_search(board: &mut Board, depth: u32, config: &TwoPhaseConfig) 
         (phase1_best_move, phase1_best_score)
     };
     
-    if best_move.from.0 == 0 && best_move.to.0 == 0 {
-        println!("  WARNING: No valid move found, falling back to first legal move");
+    // Fallback if no valid move found
+    let (best_move, best_score) = if best_move.from.0 == 0 && best_move.to.0 == 0 {
         let mut fallback_board = board.clone();
         let undo = fallback_board.make_move(&legal_moves[0]);
         let score = -alphabeta(&mut fallback_board, depth.saturating_sub(1), i32::MIN + 1, i32::MAX - 1, false);
         fallback_board.unmake_move(&legal_moves[0], undo);
-        return (legal_moves[0], score);
-    }
+        (legal_moves[0], score)
+    } else {
+        (best_move, best_score)
+    };
     
-    (best_move, best_score)
+    metrics.total_time_ms = total_start.elapsed().as_secs_f64() * 1000.0;
+    metrics.best_move = best_move.to_algebraic();
+    metrics.score = best_score;
+    
+    (best_move, best_score, metrics)
 }
 
 /// Search a set of classified moves in parallel, returning best move and score

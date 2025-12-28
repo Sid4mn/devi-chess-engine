@@ -71,6 +71,22 @@ pub struct Cli {
     /// Number of E-core threads for Phase 2
     #[arg(long, default_value_t = 2)]
     pub e_cores: usize,
+
+    /// Run two-phase benchmark mode (compares baseline vs two-phase)
+    #[arg(long, default_value_t = false)]
+    pub two_phase_benchmark: bool,
+
+    /// Heavy move ratio for classification (0.0-1.0, default 0.6 = top 60% are heavy)
+    #[arg(long, default_value_t = 0.6)]
+    pub heavy_ratio: f32,
+
+    /// Light overflow threshold - if light moves exceed this % of nodes, move all to P-cores
+    #[arg(long, default_value_t = 0.3)]
+    pub light_threshold: f32,
+
+    /// FEN position for benchmarking (default: starting position)
+    #[arg(long)]
+    pub fen: Option<String>,
 }
 
 pub fn parse_args() -> Cli {
