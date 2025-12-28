@@ -17,8 +17,28 @@ Building a chess engine from scratch to understand parallel search algorithms an
 ## Project Philosophy
 **Approach:** Build it, measure it, understand the bottlenecks.
 
-## Performance Status (v0.4.0)
+## Performance Status (v0.5.0)
 ![Build Status](https://github.com/Sid4mn/devi-chess-engine/workflows/CI/badge.svg)
+
+## v0.5.0 - Two-Phase Heterogeneous Scheduler
+
+Built on v0.4.0's finding that E-cores are 12.8x slower - instead of fighting the OS scheduler, I classify moves by subtree size and dispatch to the right cores.
+
+**1.55x speedup** on complex positions (Kiwipete, 48 moves) with probe_depth=1, ratio=0.8
+
+![Throughput Comparison](releases/v0.5.0/figures/throughput_comparison.png)
+
+```
+Kiwipete (48 moves):
+  Baseline (8 P-cores): 69.4s
+  Two-phase (8P + 2E):  44.9s (1.55x faster)
+
+Key: E-cores get the alpha bound from Phase 1, so they prune aggressively.
+```
+
+**Failure discovered**: ratio=0.7 on starting position -> 0.18x (5.6x slower). Wrong ratio is catastrophic.
+
+[Summary](releases/v0.5.0/two_phase_summary.md) | [Details](releases/v0.5.0/two_phase_detailed.md)
 
 ## v0.4.0 - Performance Characterization
 
@@ -159,6 +179,11 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 | `--perft-divide` | Show perft results per root move | - |
 | `--fault-analysis` | Run 4-scenario fault overhead analysis | - |
 | `--recovery-analysis` | Quick fault recovery test | - |
+| `--two-phase` | Enable two-phase heterogeneous scheduling | false |
+| `--two-phase-benchmark` | Run two-phase benchmark suite | false |
+| `--probe-depth` | Depth for move classification probe | 1 |
+| `--p-cores` | P-core threads for Phase 1 | 8 |
+| `--e-cores` | E-core threads for Phase 2 | 2 |
 
 ## Deliverables
 
@@ -173,7 +198,7 @@ Foundation & Correctness **COMPLETED**
   - [x] Queens (rook + bishop combined)
 - [x] Trait-based architecture
 - [x] Legal move filtering with check detection
-- [x] Perft validation suite (verified through depth 7)
+- [x] Perft validation suite (verified through depth 8)
 - [x] **Alpha-beta search implementation**
 - [x] **Material evaluation function**
 - [x] **CI/CD pipeline with regression tests**
@@ -190,6 +215,7 @@ Foundation & Correctness **COMPLETED**
 | 5     | 4,865,609     | [PASS] |
 | 6     | 119,060,324   | [PASS] |
 | 7     | 3,195,901,860 | [PASS] |
+| 8     | 84,998,978,956 | [PASS] |
 
 
 Parallel Scalability **COMPLETED**
@@ -215,6 +241,13 @@ Heterogeneous Core Scheduling **COMPLETED**
 - [x] Four scheduling policies (None, FastBias, EfficientBias, Mixed)
 - [x] Mixed policy bottleneck analysis (48% vs expected 75%)
 - [x] Automated heterogeneous benchmarking (heterogeneous.sh)
+
+Two-Phase Scheduler **COMPLETED** (v0.5.0)
+- [x] Probe-based move classification by subtree size
+- [x] Separate P-core and E-core thread pools
+- [x] Alpha-bound handoff for E-core pruning
+- [x] Adaptive heuristic (should_use_two_phase)
+- [x] Failure mode analysis (0.7 ratio disaster)
 
 ## Future Work
 
@@ -243,11 +276,11 @@ timestamp,threads,policy,median_ms,searches_per_sec
 2025-11-05_21:59:17,8,Mixed,704.135,1.42
 ```
 
-## Future Directions (v0.5.0 Roadmap)
-
-**Harness-Inspired Lightweight Scheduler** - Two-phase root execution using 2-depth PV probe to classify heavy/light moves by subtree size, then evaluate on dedicated P-core and E-core Rayon pools.
+## Future Directions
 
 **Checkpoint Recovery** - Per-thread root-level checkpointing with `catch_unwind` to preserve completed move evaluations on panic. Target: ≤30% overhead (vs current 100% full retry).
+
+**Transposition Table** - Memoization for 5-10x speedup. Intentionally omitted in v0.5.0 to isolate the scheduling research question.
 
 ## Contributing
 This is primarily a learning project, but suggestions and discussions are welcome!
