@@ -119,7 +119,15 @@ pub fn create_p_core_pool(num_threads: usize) -> Result<rayon::ThreadPool, rayon
         .num_threads(num_threads)
         .thread_name(|i| format!("p-core-{}", i))
         .spawn_handler(|thread| {
-            std::thread::spawn(move || {
+            // carry the name/stack size through instead of dropping them
+            let mut builder = std::thread::Builder::new();
+            if let Some(name) = thread.name() {
+                builder = builder.name(name.to_string());
+            }
+            if let Some(size) = thread.stack_size() {
+                builder = builder.stack_size(size);
+            }
+            builder.spawn(move || {
                 // Set high QoS on macOS
                 #[cfg(target_os = "macos")]
                 {
@@ -131,7 +139,7 @@ pub fn create_p_core_pool(num_threads: usize) -> Result<rayon::ThreadPool, rayon
                     unsafe { pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED, 0); }
                 }
                 thread.run();
-            });
+            })?;
             Ok(())
         })
         .build()
@@ -143,7 +151,15 @@ pub fn create_e_core_pool(num_threads: usize) -> Result<rayon::ThreadPool, rayon
         .num_threads(num_threads)
         .thread_name(|i| format!("e-core-{}", i))
         .spawn_handler(|thread| {
-            std::thread::spawn(move || {
+            // same as p-core pool, keep the name/stack
+            let mut builder = std::thread::Builder::new();
+            if let Some(name) = thread.name() {
+                builder = builder.name(name.to_string());
+            }
+            if let Some(size) = thread.stack_size() {
+                builder = builder.stack_size(size);
+            }
+            builder.spawn(move || {
                 #[cfg(target_os = "macos")]
                 {
                     use std::os::raw::c_uint;
@@ -154,7 +170,7 @@ pub fn create_e_core_pool(num_threads: usize) -> Result<rayon::ThreadPool, rayon
                     unsafe { pthread_set_qos_class_self_np(QOS_CLASS_BACKGROUND, 0); }
                 }
                 thread.run();
-            });
+            })?;
             Ok(())
         })
         .build()

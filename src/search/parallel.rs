@@ -3,6 +3,7 @@ use crate::moves::generate_legal_moves;
 use crate::scheduling::{create_e_core_pool, create_p_core_pool, create_pool_for_policy, CorePolicy};
 use crate::search::fault_tolerant::should_inject_panic;
 use crate::search::minimax::alphabeta;
+use crate::search::minimax::root_move_score;
 use crate::search::minimax::MATE_SCORE;
 use crate::search::probe::{classify_moves_with_config, probe_root_moves, ClassificationConfig};
 use crate::types::*;
@@ -10,6 +11,9 @@ use rayon::prelude::*;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Instant;
 
+// fault-injection state, reset per parallel_search_with_fault call.
+// assumes one search at a time (we always drive serially) - concurrent searches
+// would stomp these. fine for now.
 static MOVE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 static SHOULD_PANIC: AtomicBool = AtomicBool::new(false);
 
@@ -109,32 +113,26 @@ pub fn parallel_search_with_fault(board: &mut Board,depth: u32,policy: CorePolic
                         // Do real work first (2-ply search)
                         let mut temp_board = board.clone();
                         let temp_undo = temp_board.make_move(mv);
-                        let _ = alphabeta(&mut temp_board, 2, i32::MIN + 1, i32::MAX - 1, false);
+                        let _ = alphabeta(&mut temp_board, 2, i32::MIN + 1, i32::MAX - 1, false, 0);
                         temp_board.unmake_move(mv, temp_undo);
 
                         panic!("Injected fault at move {} after real work", move_num);
                     }
                 }
 
-                // Normal evaluation
+                // root-side-relative score so we can just take the max below
                 let mut local_board = board.clone();
-                let undo = local_board.make_move(mv);
-                let score = -alphabeta(
-                    &mut local_board,
-                    depth.saturating_sub(1),
-                    i32::MIN + 1,
-                    i32::MAX - 1,
-                    false,
-                );
-                local_board.unmake_move(mv, undo);
+                let score = root_move_score(&mut local_board, mv, depth, current_color);
 
                 (*mv, score)
             })
             .collect();
 
+        // keep first move with the max score (results stay in move order).
+        // matches search()'s strict > so serial/parallel agree on ties.
         results
             .into_iter()
-            .max_by_key(|&(_, score)| score)
+            .reduce(|best, cur| if cur.1 > best.1 { cur } else { best })
             .expect("moves non-empty")
     })
 }
@@ -218,10 +216,9 @@ pub fn two_phase_search_with_metrics(
     
     // Fallback if no valid move found
     let (best_move, best_score) = if best_move.from.0 == 0 && best_move.to.0 == 0 {
+        let root_color = board.to_move();
         let mut fallback_board = board.clone();
-        let undo = fallback_board.make_move(&legal_moves[0]);
-        let score = -alphabeta(&mut fallback_board, depth.saturating_sub(1), i32::MIN + 1, i32::MAX - 1, false);
-        fallback_board.unmake_move(&legal_moves[0], undo);
+        let score = root_move_score(&mut fallback_board, &legal_moves[0], depth, root_color);
         (legal_moves[0], score)
     } else {
         (best_move, best_score)
@@ -234,31 +231,29 @@ pub fn two_phase_search_with_metrics(
     (best_move, best_score, metrics)
 }
 
-/// Search a set of classified moves in parallel, returning best move and score
-fn search_moves_parallel(board: &Board, moves: &[ClassifiedMove], depth: u32, alpha: i32) -> (Move, i32) {
+// search a batch of classified moves in parallel, return best (move, score).
+// _alpha used to be the earlier phase's best for cross-phase pruning, but mixing
+// that with the full-window per-move search was wrong, so we ignore it now and
+// just search each move full-window. keeps the signature for the callers.
+fn search_moves_parallel(board: &Board, moves: &[ClassifiedMove], depth: u32, _alpha: i32) -> (Move, i32) {
     if moves.is_empty() {
         return (Move::default(), i32::MIN + 1);
     }
-    
+
+    let root_color = board.to_move();
+
     let results: Vec<(Move, i32)> = moves
         .par_iter()
         .map(|cm| {
             let mut new_board = board.clone();
-            let undo = new_board.make_move(&cm.mv);
-            let score = -alphabeta(
-                &mut new_board,
-                depth.saturating_sub(1),
-                -i32::MAX + 1,
-                -alpha,
-                false,
-            );
-            new_board.unmake_move(&cm.mv, undo);
+            let score = root_move_score(&mut new_board, &cm.mv, depth, root_color);
             (cm.mv, score)
         })
         .collect();
-    
+
+    // first-max, same as the other drivers
     results
         .into_iter()
-        .max_by_key(|(_, score)| *score)
+        .reduce(|best, cur| if cur.1 > best.1 { cur } else { best })
         .unwrap_or((Move::default(), i32::MIN + 1))
 }

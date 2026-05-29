@@ -135,7 +135,7 @@ fn test_single_thread_determinism() {
             for mv in moves {
                 let mut b = board.clone();
                 let _undo = b.make_move(&mv);
-                let score = alphabeta(&mut b, 4, -1_000_000, 1_000_000, false);
+                let score = alphabeta(&mut b, 4, -1_000_000, 1_000_000, false, 1);
                 if score > best_score {
                     best_score = score;
                     best_move = mv;

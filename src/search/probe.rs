@@ -41,9 +41,9 @@ pub fn probe_move(board: &Board, mv: &Move, depth: u8) -> u64 {
     for child_mv in &moves {
         node_count += probe_move(&temp_board, child_mv, depth - 1);
     }
-    
+
     temp_board.unmake_move(mv, undo);
-    node_count.max(1)
+    node_count // always >= 1 here, no clamp needed
 }
 
 /// Probe all root moves and return (move, node_count) pairs

@@ -306,14 +306,24 @@ pub fn benchmark_perft(board: &mut Board) {
         let nodes = perft(board, depth);
         let elapsed = start.elapsed();
 
-        let nodes_per_sec: u128 = (nodes as u128 * 1000) / elapsed.as_millis() as u128;
-        println!("Nodes_per_sec = {:}", nodes_per_sec);
+        // secs as f64 so a sub-ms depth doesn't divide by zero
+        let secs = elapsed.as_secs_f64();
+        if secs > 0.0 {
+            println!("Nodes_per_sec = {:.0}", nodes as f64 / secs);
+        } else {
+            println!("Nodes_per_sec = n/a (too fast to measure)");
+        }
     }
 }
 
 pub fn perft_divide(board: &mut Board, depth: u32) -> (Vec<(String, u64)>, u64) {
     let mut results = Vec::new();
     let mut total = 0;
+
+    // depth 0 would underflow depth-1, just return nothing
+    if depth == 0 {
+        return (results, total);
+    }
 
     let moves = generate_legal_moves(board, board.to_move());
 

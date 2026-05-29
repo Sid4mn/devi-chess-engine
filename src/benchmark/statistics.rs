@@ -36,9 +36,15 @@ impl BenchmarkStats {
             sorted[sorted.len() / 2] // Odd
         };
 
-        let variance =
-            samples.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / samples.len() as f64;
-        let std_dev = variance.sqrt();
+        // sample std dev (N-1), matches stddev_of() used by the two-phase bench.
+        // 0 if we don't have at least 2 samples.
+        let std_dev = if samples.len() > 1 {
+            let variance = samples.iter().map(|x| (x - mean).powi(2)).sum::<f64>()
+                / (samples.len() - 1) as f64;
+            variance.sqrt()
+        } else {
+            0.0
+        };
 
         let min = sorted[0];
         let max = sorted[sorted.len() - 1];

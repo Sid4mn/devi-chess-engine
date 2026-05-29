@@ -17,6 +17,8 @@ pub struct BenchmarkConfig {
     pub core_policy: CorePolicy,
     pub mixed_ratio: f32, // 0.80 = 8P+2E M1 pro ratio
     pub inject_panic: Option<usize>,
+    // position to bench (fen). None = startpos.
+    pub fen: Option<String>,
 }
 
 impl Default for BenchmarkConfig {
@@ -29,6 +31,19 @@ impl Default for BenchmarkConfig {
             core_policy: CorePolicy::None,
             mixed_ratio: 0.80,
             inject_panic: None,
+            fen: None,
+        }
+    }
+}
+
+// base board for the benchmark. fen is already validated by the CLI so expect() is fine.
+fn config_board(config: &BenchmarkConfig) -> Board {
+    match &config.fen {
+        Some(fen) => Board::from_fen(fen).expect("benchmark FEN should be pre-validated"),
+        None => {
+            let mut b = Board::new();
+            b.setup_starting_position();
+            b
         }
     }
 }
@@ -65,7 +80,9 @@ pub fn run_benchmark_with_policy(config: &BenchmarkConfig) -> Vec<BenchmarkResul
         );
         let sps = stats.searches_per_second();
 
-        if thread_count == 1 || (thread_count == config.thread_counts[0]) {
+        // baseline = first config in the sweep. set it once so sweeps that don't
+        // start at 1 thread still get a consistent reference.
+        if baseline_sps == 0.0 {
             baseline_sps = sps;
         }
 
@@ -110,12 +127,12 @@ fn benchmark_thread_config_with_policy(
     policy: CorePolicy,
     mixed_ratio: f32,
 ) -> BenchmarkStats {
-    let mut board = Board::new();
+    let base_board = config_board(config);
 
     // Warmup phase
     println!("  Warming up...");
     for _ in 0..config.warmup_runs {
-        board.setup_starting_position();
+        let mut board = base_board.clone();
         let _ = execute_search_with_policy(
             &mut board,
             config.depth,
@@ -131,7 +148,7 @@ fn benchmark_thread_config_with_policy(
     let mut samples = Vec::new();
 
     for run in 1..=config.measurement_runs {
-        board.setup_starting_position();
+        let mut board = base_board.clone();
 
         let (_, duration_ms) = time_execution_millis(|| {
             execute_search_with_policy(

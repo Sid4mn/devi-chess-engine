@@ -22,9 +22,29 @@ struct FaultMeasurement {
     score: i32,
 }
 
+// board to run on: --fen if given, otherwise startpos. exits cleanly on a bad fen.
+fn board_from_args(args: &Cli) -> Board {
+    match &args.fen {
+        Some(fen) => match Board::from_fen(fen) {
+            Ok(b) => {
+                println!("Using position from --fen: {}", fen);
+                b
+            }
+            Err(e) => {
+                eprintln!("Invalid --fen \"{}\": {}", fen, e);
+                std::process::exit(1);
+            }
+        },
+        None => {
+            let mut b = Board::new();
+            b.setup_starting_position();
+            b
+        }
+    }
+}
+
 pub fn run_full_benchmark(args: &Cli) {
-    let mut board = Board::new();
-    board.setup_starting_position();
+    let board = board_from_args(args);
     println!("Starting position evaluation: {}", evaluate(&board));
 
     let policy = args.core_policy.unwrap_or(CorePolicy::None);
@@ -46,6 +66,7 @@ pub fn run_full_benchmark(args: &Cli) {
         core_policy: policy,
         mixed_ratio: mixed_ratio,
         inject_panic: args.inject_panic,
+        fen: args.fen.clone(),
     };
 
     println!("Core scheduling policy: {:?}", policy);
@@ -62,8 +83,7 @@ pub fn run_full_benchmark(args: &Cli) {
 }
 
 pub fn run_single_search(args: &Cli) {
-    let mut board = Board::new();
-    board.setup_starting_position();
+    let mut board = board_from_args(args);
 
     println!("Starting position evaluation: {}", evaluate(&mut board));
     println!("Searching to depth {}...", args.depth);
@@ -108,12 +128,24 @@ pub fn run_single_search(args: &Cli) {
     let (best_move, score) = if args.inject_panic.is_some() {
         println!("Fault injection enabled at move {:?}", args.inject_panic);
 
+        if args.threads == 1 {
+            // serial search has no injection hook, so warn instead of doing nothing
+            eprintln!("  Note: --inject-panic requires --threads > 1; running without injection.");
+        }
         let search_fn = || {
             let mut b = board.clone();
             if args.threads == 1 {
                 search(&mut b, args.depth)
             } else {
-                parallel_search_with_policy(&mut b, args.depth, policy, args.threads, mixed_ratio)
+                // fault-aware variant so the panic actually fires + recovery kicks in
+                parallel_search_with_fault(
+                    &mut b,
+                    args.depth,
+                    policy,
+                    args.threads,
+                    mixed_ratio,
+                    args.inject_panic,
+                )
             }
         };
         with_recovery(search_fn, args.inject_panic)
@@ -136,8 +168,7 @@ pub fn run_recovery_analysis(args: &Cli) {
     println!("=== THREAD RECOVERY ANALYSIS ===");
     println!("Testing retry-based recovery with panic injection\n");
 
-    let mut board = Board::new();
-    board.setup_starting_position();
+    let mut board = board_from_args(args);
 
     // Test 1: Baseline (no panic)
     println!("Test 1: Baseline (no panic injection)");
@@ -185,8 +216,13 @@ pub fn run_recovery_analysis(args: &Cli) {
         println!("Score preserved: {}", score1);
     }
 
-    let overhead = ((time2.as_millis() as f64 / time1.as_millis() as f64) - 1.0) * 100.0;
-    println!("\nRecovery overhead: {:.1}%", overhead);
+    let t1 = time1.as_secs_f64();
+    if t1 > 0.0 {
+        let overhead = ((time2.as_secs_f64() / t1) - 1.0) * 100.0;
+        println!("\nRecovery overhead: {:.1}%", overhead);
+    } else {
+        println!("\nRecovery overhead: n/a (baseline completed too fast to measure)");
+    }
 }
 
 pub fn run_soak_test(args: &Cli) {
@@ -199,10 +235,10 @@ pub fn run_soak_test(args: &Cli) {
     );
 
     let mut samples_ms: Vec<f64> = Vec::new();
+    let base_board = board_from_args(args);
 
     for i in 1..=args.runs {
-        let mut board = Board::new();
-        board.setup_starting_position();
+        let mut board = base_board.clone();
 
         let start = Instant::now();
         let _ = if args.threads == 1 {
@@ -334,8 +370,7 @@ pub fn run_perft_test(args: &Cli) {
         args.threads
     );
 
-    let mut board = Board::new();
-    board.setup_starting_position();
+    let mut board = board_from_args(args);
 
     if args.perft_divide && args.depth > 0 {
         println!("\n--- PERFT DIVIDE at depth {} ---", args.depth);
@@ -374,7 +409,8 @@ pub fn run_perft_depths(args: &Cli, board: &mut Board, parallel: bool) {
         };
 
         let elapsed = start.elapsed();
-        let nps = nodes as f64 / elapsed.as_secs_f64();
+        let secs = elapsed.as_secs_f64();
+        let nps = if secs > 0.0 { nodes as f64 / secs } else { 0.0 };
 
         println!(
             "{:>4} | {:>12} | {:>8.2}s | {:>10.0}",
@@ -477,8 +513,7 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
         depth, threads, iterations
     );
 
-    let mut board = Board::new();
-    board.setup_starting_position();
+    let board = board_from_args(args);
 
     let mut results = Vec::new();
 
@@ -784,6 +819,11 @@ pub fn run_two_phase_benchmark(args: &Cli) {
     
     // Determine positions to test
     let positions: Vec<(String, String)> = if let Some(ref fen) = args.fen {
+        // bail on a bad fen instead of skipping the only position -> empty csv
+        if let Err(e) = Board::from_fen(fen) {
+            eprintln!("Invalid --fen \"{}\": {}", fen, e);
+            std::process::exit(1);
+        }
         vec![("custom".to_string(), fen.clone())]
     } else {
         BENCHMARK_POSITIONS.iter()
@@ -1011,6 +1051,9 @@ fn benchmark_two_phase(board: &mut Board, depth: u32, warmup: usize, runs: usize
 }
 
 fn median_time(samples: &[TwoPhaseMetrics]) -> f64 {
+    if samples.is_empty() {
+        return 0.0;
+    }
     let mut times: Vec<f64> = samples.iter().map(|s| s.total_time_ms).collect();
     times.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let mid = times.len() / 2;

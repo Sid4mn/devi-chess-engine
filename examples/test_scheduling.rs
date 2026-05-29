@@ -116,7 +116,8 @@ fn main() {
             mixed_time / fast_time
         );
 
-        let theoretical_mixed = 0.80 * fast_time + 0.25 * efficient_time;
+        // 80/20 fast/efficient split, so efficient weight is 0.20 (was 0.25)
+        let theoretical_mixed = 0.80 * fast_time + 0.20 * efficient_time;
         let mixed_efficiency = theoretical_mixed / mixed_time;
         println!("Mixed efficiency vs theoretical: {:.2}x", mixed_efficiency);
     }

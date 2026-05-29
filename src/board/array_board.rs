@@ -239,7 +239,8 @@ impl BoardRepresentation for ArrayBoard {
         if moving_piece.piece_type == PieceType::Pawn || undo.captured_piece.is_some() {
             self.halfmove_clock = 0;
         } else {
-            self.halfmove_clock += 1;
+            // saturate so a really long game doesn't overflow the u8
+            self.halfmove_clock = self.halfmove_clock.saturating_add(1);
         }
 
         // Toggle side to move
@@ -801,15 +802,21 @@ impl BoardRepresentation for ArrayBoard {
         for (rank_idx, rank_str) in ranks.iter().enumerate() {
             let rank = 7 - rank_idx; // FEN starts from rank 8
             let mut file = 0u8;
-            
+
             for c in rank_str.chars() {
-                if file >= 8 {
-                    return Err(format!("Too many squares in rank {}", rank + 1));
-                }
-                
                 if let Some(digit) = c.to_digit(10) {
+                    if digit == 0 || digit > 8 {
+                        return Err(format!(
+                            "Invalid empty-square count '{}' in rank {}",
+                            c,
+                            rank + 1
+                        ));
+                    }
                     file += digit as u8;
                 } else {
+                    if file >= 8 {
+                        return Err(format!("Too many squares in rank {}", rank + 1));
+                    }
                     let (piece_type, color) = match c {
                         'P' => (PieceType::Pawn, Color::White),
                         'N' => (PieceType::Knight, Color::White),
@@ -830,8 +837,16 @@ impl BoardRepresentation for ArrayBoard {
                     file += 1;
                 }
             }
+
+            if file != 8 {
+                return Err(format!(
+                    "Rank {} describes {} squares, expected 8",
+                    rank + 1,
+                    file
+                ));
+            }
         }
-        
+
         // Parse side to move
         board.to_move = match parts[1] {
             "w" => Color::White,
@@ -859,24 +874,55 @@ impl BoardRepresentation for ArrayBoard {
             if ep_chars.len() != 2 {
                 return Err(format!("Invalid en passant square: {}", parts[3]));
             }
-            let file = ep_chars[0] as u8 - b'a';
-            let rank = ep_chars[1] as u8 - b'1';
-            if file > 7 || rank > 7 {
+            let file_c = ep_chars[0];
+            let rank_c = ep_chars[1];
+            if !('a'..='h').contains(&file_c) || !('1'..='8').contains(&rank_c) {
                 return Err(format!("Invalid en passant square: {}", parts[3]));
+            }
+            let file = file_c as u8 - b'a';
+            let rank = rank_c as u8 - b'1';
+            // ep square is rank 6 if white to move, rank 3 if black (0-indexed 5/2).
+            // anything else is bogus and make_move would index off the board.
+            let expected_rank = match board.to_move {
+                Color::White => 5,
+                Color::Black => 2,
+            };
+            if rank != expected_rank {
+                return Err(format!(
+                    "En passant square {} is impossible with {} to move",
+                    parts[3],
+                    if board.to_move == Color::White { "white" } else { "black" }
+                ));
             }
             board.en_passant = Some(Square(rank * 8 + file));
         }
         
         // Parse halfmove clock (optional)
         if parts.len() > 4 {
-            board.halfmove_clock = parts[4].parse().unwrap_or(0);
+            board.halfmove_clock = parts[4]
+                .parse()
+                .map_err(|_| format!("Invalid halfmove clock: {}", parts[4]))?;
         }
-        
+
         // Parse fullmove number (optional)
         if parts.len() > 5 {
-            board.fullmove_clock = parts[5].parse().unwrap_or(1);
+            board.fullmove_clock = parts[5]
+                .parse()
+                .map_err(|_| format!("Invalid fullmove number: {}", parts[5]))?;
         }
-        
+
+        // reject >1 king per side (find_king would just grab one and check
+        // detection breaks). zero kings is allowed - some test positions drop
+        // the side that isn't to move.
+        let white_kings = board.count_pieces(PieceType::King, Color::White);
+        let black_kings = board.count_pieces(PieceType::King, Color::Black);
+        if white_kings > 1 || black_kings > 1 {
+            return Err(format!(
+                "Illegal king count (white={}, black={}); at most one king per side",
+                white_kings, black_kings
+            ));
+        }
+
         Ok(board)
     }
 }
