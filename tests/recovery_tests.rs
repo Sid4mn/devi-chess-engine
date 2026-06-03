@@ -1,8 +1,11 @@
 // Recovery wrapper correctness tests
 use devi::board::{Board, BoardRepresentation};
 use devi::moves::generate_legal_moves;
+use devi::scheduling::CorePolicy;
 use devi::search::fault_tolerant::with_recovery;
-use devi::search::{minimax::alphabeta, parallel_search, search};
+use devi::search::{
+    minimax::alphabeta, parallel_search, parallel_search_with_fault_set, search, InjectionPlan,
+};
 
 #[test]
 fn test_recovery_preserves_correctness() {
@@ -215,4 +218,62 @@ fn test_recovery_panic_at_zero() {
 
     assert_ne!(score, -1_000_000);
     assert_ne!(mv.to_algebraic(), "a1a1");
+}
+
+// crash every root move at once - recovery should retry each and still land on the clean answer.
+#[test]
+fn test_per_move_recovery_all_faults() {
+    let mut board = Board::new();
+    board.setup_starting_position();
+
+    let depth = 5;
+    let (baseline_mv, baseline_score) = parallel_search(&mut board, depth);
+
+    let n = generate_legal_moves(&mut board.clone(), board.to_move()).len();
+    let mut b = board.clone();
+    let outcome =
+        parallel_search_with_fault_set(&mut b, depth, CorePolicy::None, 4, 0.0, InjectionPlan::set(0..n));
+
+    assert_eq!(
+        baseline_mv.to_algebraic(),
+        outcome.best_move.to_algebraic(),
+        "best move changed"
+    );
+    assert_eq!(baseline_score, outcome.score, "score changed");
+    assert!(!outcome.degraded, "should fully recover, not degrade");
+    assert!(outcome.dropped.is_empty(), "no move should be dropped");
+}
+
+// a fault landing on the actual best move is the scary case - make sure we still return it.
+#[test]
+fn test_per_move_recovery_fault_on_best_move() {
+    let mut board = Board::new();
+    board.setup_starting_position();
+
+    let depth = 5;
+    let (baseline_mv, baseline_score) = parallel_search(&mut board, depth);
+
+    let moves = generate_legal_moves(&mut board.clone(), board.to_move());
+    let best_idx = moves
+        .iter()
+        .position(|m| m.to_algebraic() == baseline_mv.to_algebraic())
+        .expect("best move is a legal move");
+
+    let mut b = board.clone();
+    let outcome = parallel_search_with_fault_set(
+        &mut b,
+        depth,
+        CorePolicy::None,
+        4,
+        0.0,
+        InjectionPlan::single(best_idx),
+    );
+
+    assert_eq!(
+        baseline_mv.to_algebraic(),
+        outcome.best_move.to_algebraic(),
+        "lost the best move"
+    );
+    assert_eq!(baseline_score, outcome.score, "score changed");
+    assert!(!outcome.degraded, "single fault should recover cleanly");
 }

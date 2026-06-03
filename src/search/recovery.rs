@@ -1,30 +1,25 @@
-use crate::board::Board;
+use crate::types::Move;
 
-// Simplified - checkpointing disabled for now
-pub struct CheckpointManager {
-    pub interval: usize,
+// completed root-move results keyed by stable move index, merged on the driver so nothing's shared.
+pub struct CompletedMoves {
+    inner: Vec<Option<(Move, i32)>>,
 }
 
-impl CheckpointManager {
-    pub fn new(interval: usize) -> Self {
-        Self { interval }
+impl CompletedMoves {
+    pub fn new(n: usize) -> Self {
+        Self { inner: vec![None; n] }
     }
 
-    // Stub methods - not used in simplified recovery
-    pub fn save(&self, _worker_id: usize, _checkpoint: SearchCheckpoint) {}
-    pub fn get(&self, _worker_id: usize) -> Option<SearchCheckpoint> {
-        None
+    pub fn record(&mut self, idx: usize, mv: Move, score: i32) {
+        self.inner[idx] = Some((mv, score));
     }
-    pub fn clear(&self, _worker_id: usize) {}
-}
 
-#[derive(Clone)]
-pub struct SearchCheckpoint {
-    pub board: Board,
-    pub depth_remaining: u8,
-    pub alpha: i32,
-    pub beta: i32,
-    pub move_index: usize,
-    pub nodes_searched: u64,
-    pub best_score: i32,
+    // first move with the max score - same first-max rule the search drivers reduce with.
+    pub fn best(&self) -> Option<(Move, i32)> {
+        self.inner
+            .iter()
+            .flatten()
+            .copied()
+            .reduce(|best, cur| if cur.1 > best.1 { cur } else { best })
+    }
 }

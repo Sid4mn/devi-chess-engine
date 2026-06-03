@@ -2,11 +2,12 @@ use crate::benchmark::{run_benchmark, BenchmarkConfig, BenchmarkResult};
 use crate::board::{Board, BoardRepresentation};
 use crate::cli::Cli;
 use crate::evaluation::evaluate;
-use crate::moves::{perft, perft_divide, perft_parallel};
+use crate::moves::{generate_legal_moves, perft, perft_divide, perft_parallel};
 use crate::scheduling::CorePolicy;
 use crate::search::fault_tolerant::with_recovery;
 use crate::search::parallel::parallel_search_with_fault;
 use crate::search::parallel::parallel_search_with_policy;
+use crate::search::parallel::{parallel_search_with_fault_set, InjectionPlan};
 use crate::search::probe::ClassificationConfig;
 use crate::search::{parallel_search, search, two_phase_search, two_phase_search_with_metrics, TwoPhaseConfig, TwoPhaseMetrics}; 
 use rayon;
@@ -20,6 +21,7 @@ struct FaultMeasurement {
     median_ms: f64,
     best_move: String,
     score: i32,
+    faults: usize, // how many injected crashes this scenario had
 }
 
 // board to run on: --fen if given, otherwise startpos. exits cleanly on a bad fen.
@@ -186,11 +188,11 @@ pub fn run_recovery_analysis(args: &Cli) {
     println!("\nTest 2: With panic injection + recovery");
     let start = Instant::now();
 
-    // Clone board for recovery closure
+    // must go through the fault-injecting path or the panic never fires (the old bug here).
     let board_clone = board.clone();
     let search_fn = || {
         let mut b = board_clone.clone();
-        parallel_search(&mut b, args.depth)
+        parallel_search_with_fault(&mut b, args.depth, CorePolicy::None, args.threads, 0.0, Some(5))
     };
 
     let (mv2, score2) = with_recovery(search_fn, Some(5));
@@ -504,16 +506,26 @@ pub fn export_benchmark_csv(results: &[BenchmarkResult], custom_path: Option<&st
 pub fn run_fault_overhead_analysis(args: &Cli) {
     let depth = if args.depth < 7 { 7 } else { args.depth };
     let threads = args.threads;
-    let iterations = 5;
-    let warmup_per_scenario = 3;
+    let policy = args.core_policy.unwrap_or(CorePolicy::None);
+    let mixed_ratio = args.mixed_ratio;
+    // honor --runs/--warmup so we can crank iterations up + pin cores when the machine is noisy.
+    let iterations = args.runs;
+    let warmup_per_scenario = args.warmup;
 
     println!("Fault Tolerance Overhead Analysis");
     println!(
-        "Depth: {}, Threads: {}, Iterations: {}\n",
-        depth, threads, iterations
+        "Depth: {}, Threads: {}, Policy: {:?}, Iterations: {}, Warmup: {}\n",
+        depth, threads, policy, iterations, warmup_per_scenario
     );
 
     let board = board_from_args(args);
+
+    // N - we report overhead against this so the fault sweep reads as "K out of N moves".
+    let n_moves = {
+        let mut nb = board.clone();
+        let c = nb.to_move();
+        generate_legal_moves(&mut nb, c).len()
+    };
 
     let mut results = Vec::new();
 
@@ -525,7 +537,7 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
         let _ = if threads == 1 {
             search(&mut b, depth)
         } else {
-            parallel_search(&mut b, depth)
+            parallel_search_with_policy(&mut b, depth, policy, threads, mixed_ratio)
         };
     }
 
@@ -540,7 +552,7 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
         let (mv, score) = if threads == 1 {
             search(&mut b, depth)
         } else {
-            parallel_search(&mut b, depth)
+            parallel_search_with_policy(&mut b, depth, policy, threads, mixed_ratio)
         };
         let elapsed = start.elapsed().as_secs_f64() * 1000.0;
         baseline_times.push(elapsed);
@@ -558,6 +570,7 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
         median_ms: baseline_median,
         best_move: baseline_move.clone(),
         score: baseline_score,
+        faults: 0,
     });
 
     // === Zero-overhead check ===
@@ -570,7 +583,7 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
             if threads == 1 {
                 search(&mut b, depth)
             } else {
-                parallel_search(&mut b, depth)
+                parallel_search_with_policy(&mut b, depth, policy, threads, mixed_ratio)
             }
         };
         let _ = with_recovery(search_fn, None);
@@ -588,7 +601,7 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
             if threads == 1 {
                 search(&mut b, depth)
             } else {
-                parallel_search(&mut b, depth)
+                parallel_search_with_policy(&mut b, depth, policy, threads, mixed_ratio)
             }
         };
         let start = Instant::now();
@@ -611,6 +624,7 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
         median_ms: zero_median,
         best_move: zero_move,
         score: zero_score,
+        faults: 0,
     });
 
     // === Recovery with actual fault ===
@@ -623,7 +637,7 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
             if threads == 1 {
                 search(&mut b, depth)
             } else {
-                parallel_search_with_fault(&mut b, depth, CorePolicy::None, threads, 0.0, Some(5))
+                parallel_search_with_fault(&mut b, depth, policy, threads, mixed_ratio, Some(5))
             }
         };
         let _ = with_recovery(search_fn, Some(5));
@@ -641,7 +655,7 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
             if threads == 1 {
                 search(&mut b, depth)
             } else {
-                parallel_search_with_fault(&mut b, depth, CorePolicy::None, threads, 0.0, Some(5))
+                parallel_search_with_fault(&mut b, depth, policy, threads, mixed_ratio, Some(5))
             }
         };
 
@@ -666,6 +680,7 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
         median_ms: panic_median,
         best_move: panic_move,
         score: panic_score,
+        faults: 1,
     });
 
     // === Sanity: double work ===
@@ -680,14 +695,14 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
         let (mv1, score1) = if threads == 1 {
             search(&mut b, depth)
         } else {
-            parallel_search(&mut b, depth)
+            parallel_search_with_policy(&mut b, depth, policy, threads, mixed_ratio)
         };
 
         let mut b2 = board.clone();
         let (_mv2, _score2) = if threads == 1 {
             search(&mut b2, depth)
         } else {
-            parallel_search(&mut b2, depth)
+            parallel_search_with_policy(&mut b2, depth, policy, threads, mixed_ratio)
         };
 
         let elapsed = start.elapsed().as_secs_f64() * 1000.0;
@@ -714,10 +729,52 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
         median_ms: double_median,
         best_move: baseline_move.clone(),
         score: baseline_score,
+        faults: 0,
     });
 
+    // === Fault scaling sweep ===
+    // inject K faults at once; per-move recovery should scale with K, not the flat ~100% of a full re-run.
+    println!("Scenario 5: Fault scaling sweep (K faults out of {} moves)", n_moves);
+    let mut k = 1;
+    while k <= n_moves {
+        println!("  K = {} fault(s):", k);
+        for _ in 0..warmup_per_scenario {
+            let mut b = board.clone();
+            let _ = parallel_search_with_fault_set(&mut b, depth, policy, threads, mixed_ratio, InjectionPlan::set(0..k));
+        }
+
+        let mut sweep_times = Vec::new();
+        let mut sweep_move = String::new();
+        let mut sweep_score = 0;
+        for i in 1..=iterations {
+            let mut b = board.clone();
+            let start = Instant::now();
+            let outcome = parallel_search_with_fault_set(&mut b, depth, policy, threads, mixed_ratio, InjectionPlan::set(0..k));
+            let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+            sweep_times.push(elapsed);
+            sweep_move = outcome.best_move.to_algebraic();
+            sweep_score = outcome.score;
+            println!("    Run {}: {:.3}ms", i, elapsed);
+        }
+        sweep_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let sweep_median = sweep_times[sweep_times.len() / 2];
+        let sweep_overhead = ((sweep_median - baseline_median) / baseline_median) * 100.0;
+        println!("    Median: {:.3}ms ({:+.2}%)\n", sweep_median, sweep_overhead);
+
+        results.push(FaultMeasurement {
+            scenario: "fault_sweep",
+            times_ms: sweep_times,
+            median_ms: sweep_median,
+            best_move: sweep_move,
+            score: sweep_score,
+            faults: k,
+        });
+
+        k *= 2;
+    }
+
     let csv_path = "benchmarks/fault_overhead.csv";
-    export_fault_csv(&results, csv_path, depth, threads);
+    export_fault_csv(&results, csv_path, depth, threads, n_moves);
 
     println!("SUMMARY:");
     println!("  Baseline:      {:.3}ms", baseline_median);
@@ -744,7 +801,7 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
     println!("\nResults exported to: {}", csv_path);
 }
 
-fn export_fault_csv(results: &[FaultMeasurement], path: &str, depth: u32, threads: usize) {
+fn export_fault_csv(results: &[FaultMeasurement], path: &str, depth: u32, threads: usize, n_moves: usize) {
     if let Some(parent) = std::path::Path::new(path).parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -752,9 +809,10 @@ fn export_fault_csv(results: &[FaultMeasurement], path: &str, depth: u32, thread
     let mut file = std::fs::File::create(path).unwrap();
     let ts = chrono::Local::now().format("%Y-%m-%d_%H:%M:%S").to_string();
 
+    // faults,n_moves are trailing so old readers of this file keep working.
     writeln!(
         file,
-        "timestamp,depth,threads,scenario,median_ms,overhead_pct,move,score,min_ms,max_ms"
+        "timestamp,depth,threads,scenario,median_ms,overhead_pct,move,score,min_ms,max_ms,faults,n_moves"
     )
     .unwrap();
 
@@ -771,7 +829,7 @@ fn export_fault_csv(results: &[FaultMeasurement], path: &str, depth: u32, thread
 
         writeln!(
             file,
-            "{},{},{},{},{:.3},{:.2},{},{},{:.3},{:.3}",
+            "{},{},{},{},{:.3},{:.2},{},{},{:.3},{:.3},{},{}",
             ts,
             depth,
             threads,
@@ -781,7 +839,9 @@ fn export_fault_csv(results: &[FaultMeasurement], path: &str, depth: u32, thread
             r.best_move,
             r.score,
             min_ms,
-            max_ms
+            max_ms,
+            r.faults,
+            n_moves
         )
         .unwrap();
     }
