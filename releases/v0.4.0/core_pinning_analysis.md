@@ -1,5 +1,8 @@
 # Heterogeneous Core Scheduling Analysis (v0.4.0)
 
+> Note (v0.6.0): the EfficientBias runs used `QOS_CLASS_BACKGROUND`, so the "12.8x gap" below is
+> mostly OS throttling, not silicon (~3x real). See [../v0.6.0/reality_check.md](../v0.6.0/reality_check.md).
+
 ## Summary
 QoS-based thread biasing on Apple Silicon M1 Pro reveals a **12.8x performance gap** between P-cores and E-cores for branch-heavy chess search. Mixed scheduling achieves only 65% of expected performance due to critical-path bottlenecks.
 

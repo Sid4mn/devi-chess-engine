@@ -8,8 +8,8 @@ use crate::search::fault_tolerant::with_recovery;
 use crate::search::parallel::parallel_search_with_fault;
 use crate::search::parallel::parallel_search_with_policy;
 use crate::search::parallel::{parallel_search_with_fault_set, InjectionPlan};
-use crate::search::probe::ClassificationConfig;
-use crate::search::{parallel_search, search, two_phase_search, two_phase_search_with_metrics, TwoPhaseConfig, TwoPhaseMetrics}; 
+use crate::search::probe::{probe_move, ClassificationConfig};
+use crate::search::{parallel_search, root_move_score, search, two_phase_search, two_phase_search_with_metrics, TwoPhaseConfig, TwoPhaseMetrics};
 use rayon;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
@@ -732,8 +732,8 @@ pub fn run_fault_overhead_analysis(args: &Cli) {
         faults: 0,
     });
 
-    // === Fault scaling sweep ===
-    // inject K faults at once; per-move recovery should scale with K, not the flat ~100% of a full re-run.
+    /* === Fault scaling sweep ===
+       inject K faults at once; per-move recovery should scale with K, not the flat ~100% of a full re-run. */
     println!("Scenario 5: Fault scaling sweep (K faults out of {} moves)", n_moves);
     let mut k = 1;
     while k <= n_moves {
@@ -932,7 +932,7 @@ pub fn run_two_phase_benchmark(args: &Cli) {
             println!("\n[TwoPhase] probe_depth={}, ratio=0.6", probe_depth);
             let tp_result = benchmark_two_phase(
                 &mut board, depth, warmup, runs, pos_name,
-                probe_depth, 0.6, 0.3, 
+                probe_depth, 0.6, args.light_threshold,
                 args.p_cores, args.e_cores,
                 baseline_sps
             );
@@ -943,10 +943,10 @@ pub fn run_two_phase_benchmark(args: &Cli) {
         // Classification ratio sweep (with best probe depth)
         for &ratio in &heavy_ratios {
             if ratio == 0.6 { continue; } // Already tested
-            println!("\n[TwoPhase] probe_depth=1, ratio={:.1}", ratio);
+            println!("\n[TwoPhase] probe_depth=2, ratio={:.1}", ratio);
             let tp_result = benchmark_two_phase(
                 &mut board, depth, warmup, runs, pos_name,
-                1, ratio, 0.3,
+                2, ratio, args.light_threshold,
                 args.p_cores, args.e_cores,
                 baseline_sps
             );
@@ -1198,5 +1198,318 @@ fn print_two_phase_summary(results: &[TwoPhaseBenchmarkResult]) {
             println!("{}: {} ({:.2}x speedup, probe_depth={}, heavy_ratio={:.1})",
                 pos, b.config_name, b.speedup_vs_baseline, b.probe_depth, b.heavy_ratio);
         }
+    }
+}
+
+/* Classification-accuracy analysis.
+   The two-phase scheduler bets that a cheap shallow PROBE (node count at depth 1..3,
+   unpruned) predicts a root move's TRUE search cost at full depth. This mode tests that
+   bet with no scheduler in the loop: per root move we record probe@{1,2,3} and the true
+   cost = median single-thread wall-time of a full-depth search, then score how well each
+   probe depth's ranking matches the true-cost ranking. */
+
+const PROBE_DEPTHS: [u8; 3] = [1, 2, 3];
+const TRUE_COST_REPEATS: usize = 3; // median over this many timed runs per move
+
+struct MoveCostRow {
+    algebraic: String,
+    probe_counts: Vec<u64>, // one entry per PROBE_DEPTHS
+    true_time_ms: f64,
+}
+
+pub fn run_classification_analysis(args: &Cli) {
+    println!("=== CLASSIFICATION-ACCURACY ANALYSIS ===\n");
+    let depth = args.depth;
+    let heavy_ratio = args.heavy_ratio;
+    println!(
+        "True-cost depth: {}  |  probe depths: {:?}  |  heavy_ratio: {:.2}  |  timed repeats/move: {}",
+        depth, PROBE_DEPTHS, heavy_ratio, TRUE_COST_REPEATS
+    );
+    println!("(true cost = median single-thread wall-time of a full-depth search of each root move)\n");
+
+    let positions: Vec<(String, String)> = if let Some(ref fen) = args.fen {
+        if Board::from_fen(fen).is_err() {
+            eprintln!("Invalid --fen \"{}\"", fen);
+            std::process::exit(1);
+        }
+        vec![("custom".to_string(), fen.clone())]
+    } else {
+        BENCHMARK_POSITIONS
+            .iter()
+            .map(|(n, f)| (n.to_string(), f.to_string()))
+            .collect()
+    };
+
+    let csv_path = args
+        .csv_output
+        .as_deref()
+        .unwrap_or("benchmarks/v0.5.0/classification_accuracy.csv");
+    let mut csv_rows: Vec<String> = Vec::new();
+    csv_rows.push(format!(
+        "position,move,{},true_time_ms",
+        PROBE_DEPTHS.iter().map(|d| format!("probe_d{}", d)).collect::<Vec<_>>().join(",")
+    ));
+
+    // (position, probe_depth, spearman, topk_overlap, cost_capture, k, n)
+    let mut summary: Vec<(String, u8, f64, f64, f64, usize, usize)> = Vec::new();
+
+    for (pos_name, fen) in &positions {
+        let mut board = match Board::from_fen(fen) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("skip {}: {}", pos_name, e);
+                continue;
+            }
+        };
+        let color = board.to_move();
+        let moves = generate_legal_moves(&mut board, color);
+        let n = moves.len();
+        println!("Position: {} ({} legal moves)", pos_name, n);
+        println!("{}", "-".repeat(70));
+
+        if n < 2 {
+            println!("  <2 moves, nothing to classify; skipping.\n");
+            continue;
+        }
+
+        // Per-move: probe counts (deterministic) + true cost (median of timed runs).
+        let mut rows: Vec<MoveCostRow> = Vec::with_capacity(n);
+        for mv in &moves {
+            let probe_counts: Vec<u64> = PROBE_DEPTHS.iter().map(|&d| probe_move(&board, mv, d)).collect();
+
+            let mut times: Vec<f64> = Vec::with_capacity(TRUE_COST_REPEATS);
+            for _ in 0..TRUE_COST_REPEATS {
+                let mut b = board.clone();
+                let start = Instant::now();
+                let _ = root_move_score(&mut b, mv, depth, color);
+                times.push(start.elapsed().as_secs_f64() * 1000.0);
+            }
+            times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let true_time_ms = times[times.len() / 2];
+
+            rows.push(MoveCostRow { algebraic: mv.to_algebraic(), probe_counts, true_time_ms });
+        }
+
+        for r in &rows {
+            csv_rows.push(format!(
+                "{},{},{},{:.3}",
+                pos_name,
+                r.algebraic,
+                r.probe_counts.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(","),
+                r.true_time_ms
+            ));
+        }
+
+        let true_cost: Vec<f64> = rows.iter().map(|r| r.true_time_ms).collect();
+        let total_true: f64 = true_cost.iter().sum();
+        let k = (((n as f32) * heavy_ratio) as usize).max(1); // matches classify_moves_with_config
+        let true_heavy = top_k_indices(&true_cost, k);
+
+        // Per-move table, sorted by true cost descending.
+        let mut order: Vec<usize> = (0..n).collect();
+        order.sort_by(|&a, &b| true_cost[b].partial_cmp(&true_cost[a]).unwrap());
+        println!("  {:<8} {:>11} {:>11} {:>11} {:>12}", "move", "probe@1", "probe@2", "probe@3", "true(ms)");
+        for &i in &order {
+            let r = &rows[i];
+            println!(
+                "  {:<8} {:>11} {:>11} {:>11} {:>12.2}",
+                r.algebraic, r.probe_counts[0], r.probe_counts[1], r.probe_counts[2], r.true_time_ms
+            );
+        }
+
+        // Quality metrics per probe depth.
+        println!();
+        println!("  {:<10} {:>10} {:>15} {:>14}", "probe", "spearman", "top-k overlap", "cost-capture");
+        for (pi, &pd) in PROBE_DEPTHS.iter().enumerate() {
+            let probe_vec: Vec<f64> = rows.iter().map(|r| r.probe_counts[pi] as f64).collect();
+            let sp = spearman(&probe_vec, &true_cost);
+            let probe_heavy = top_k_indices(&probe_vec, k);
+            let overlap = set_overlap(&probe_heavy, &true_heavy) as f64 / k as f64;
+            let captured: f64 = probe_heavy.iter().map(|&i| true_cost[i]).sum();
+            let cost_capture = if total_true > 0.0 { captured / total_true } else { 0.0 };
+            println!("  d={:<8} {:>10.3} {:>14.0}% {:>13.0}%", pd, sp, overlap * 100.0, cost_capture * 100.0);
+            summary.push((pos_name.clone(), pd, sp, overlap, cost_capture, k, n));
+        }
+        println!("  (top-k overlap & cost-capture at heavy_ratio={:.2} -> k={} of {})\n", heavy_ratio, k, n);
+    }
+
+    write_lines_csv(csv_path, &csv_rows);
+    println!("Per-move data exported to: {}", csv_path);
+
+    println!("\n=== SUMMARY: classification quality by probe depth ===");
+    println!("spearman = ranking fidelity (1.0 perfect, 0 = noise)");
+    println!("overlap  = fraction of the probe's heavy set that is truly heavy");
+    println!("capture  = fraction of total real search work routed to the heavy set\n");
+    println!("{:<12} {:>6} {:>10} {:>10} {:>10}", "position", "probe", "spearman", "overlap", "capture");
+    for (pos, pd, sp, ov, cap, _k, _n) in &summary {
+        println!("{:<12} d={:<4} {:>10.3} {:>9.0}% {:>9.0}%", pos, pd, sp, ov * 100.0, cap * 100.0);
+    }
+}
+
+/* Crossover analysis. The whole two-phase bet is "keeping work off the slow E-cores helps".
+   That only pays when there isn't enough parallel work for rayon to keep the 8 P-cores busy
+   while the 2 E-cores quietly chew the rest. So: take one position, search just the first k of
+   its root moves, and time it on a plain 10-thread pool (OS spreads over 8P+2E, work-stealing)
+   vs an 8-thread P-core pool. Sweep k. Constant subtree sizes, so k is the only variable.
+   No YBW seeding here on purpose - we want to isolate the scheduling, not the search. */
+pub fn run_crossover_analysis(args: &Cli) {
+    use crate::scheduling::create_p_core_pool;
+    use rayon::prelude::*;
+
+    println!("=== CROSSOVER: 10-core work-stealing (8P+2E) vs 8 P-cores only ===");
+    let depth = args.depth;
+    let runs = args.runs.max(5);
+    let warmup = args.warmup.max(2);
+
+    let mut board = board_from_args(args);
+    let color = board.to_move();
+    let moves = generate_legal_moves(&mut board, color);
+    let n = moves.len();
+    let base = board.clone();
+    println!("{} legal moves | depth {} | {} runs (median)\n", n, depth, runs);
+
+    let pool10 = rayon::ThreadPoolBuilder::new().num_threads(10).build().expect("pool10");
+    let pool8 = create_p_core_pool(8).expect("pool8");
+
+    // median wall-time to search the first k root moves on `pool`.
+    let run_k = |pool: &rayon::ThreadPool, k: usize| -> f64 {
+        let mvs = &moves[..k];
+        let once = || {
+            pool.install(|| {
+                mvs.par_iter()
+                    .map(|m| {
+                        let mut b = base.clone();
+                        root_move_score(&mut b, m, depth, color)
+                    })
+                    .reduce(|| i32::MIN + 1, i32::max)
+            })
+        };
+        for _ in 0..warmup {
+            let _ = once();
+        }
+        let mut ts = Vec::with_capacity(runs);
+        for _ in 0..runs {
+            let start = Instant::now();
+            let _ = once();
+            ts.push(start.elapsed().as_secs_f64() * 1000.0);
+        }
+        ts.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        ts[ts.len() / 2]
+    };
+
+    let mut ks: Vec<usize> = [2, 4, 6, 8, 12, 16, 24, 36, 48, 64]
+        .iter()
+        .cloned()
+        .filter(|&k| k <= n)
+        .collect();
+    if ks.last() != Some(&n) {
+        ks.push(n);
+    }
+
+    let mut rows = Vec::new();
+    println!("{:>4} {:>12} {:>12} {:>9}", "k", "10core_ms", "8P_ms", "8P/10c");
+    println!("{}", "-".repeat(44));
+    for &k in &ks {
+        let t10 = run_k(&pool10, k);
+        let t8 = run_k(&pool8, k);
+        let r = t8 / t10;
+        let tag = if r < 0.98 {
+            "  <- 8P (avoid E) wins"
+        } else if r > 1.02 {
+            "  10-core wins"
+        } else {
+            "  ~tie"
+        };
+        println!("{:>4} {:>12.3} {:>12.3} {:>9.3}{}", k, t10, t8, r, tag);
+        rows.push((k, t10, t8, r));
+    }
+
+    /* include the move count in the default name so runs on different positions can't
+       clobber each other (learned that the hard way - a startpos run ate the kiwipete data). */
+    let default_path = format!("benchmarks/fixing_search/crossover_{}moves.csv", n);
+    let path = args.csv_output.as_deref().unwrap_or(&default_path);
+    if let Some(p) = std::path::Path::new(path).parent() {
+        let _ = create_dir_all(p);
+    }
+    if let Ok(f) = File::create(path) {
+        let mut w = BufWriter::new(f);
+        let _ = writeln!(w, "k,tencore_ms,eightP_ms,ratio_8P_over_10c");
+        for (k, t10, t8, r) in &rows {
+            let _ = writeln!(w, "{},{:.3},{:.3},{:.4}", k, t10, t8, r);
+        }
+    }
+    println!("\nwritten to {}", path);
+}
+
+fn top_k_indices(values: &[f64], k: usize) -> Vec<usize> {
+    let mut idx: Vec<usize> = (0..values.len()).collect();
+    idx.sort_by(|&a, &b| values[b].partial_cmp(&values[a]).unwrap()); // descending
+    idx.truncate(k);
+    idx
+}
+
+fn set_overlap(a: &[usize], b: &[usize]) -> usize {
+    a.iter().filter(|x| b.contains(x)).count()
+}
+
+// Average-rank assignment (ties share the mean of their rank span), ascending.
+fn average_ranks(values: &[f64]) -> Vec<f64> {
+    let n = values.len();
+    let mut idx: Vec<usize> = (0..n).collect();
+    idx.sort_by(|&a, &b| values[a].partial_cmp(&values[b]).unwrap());
+    let mut ranks = vec![0.0f64; n];
+    let mut i = 0;
+    while i < n {
+        let mut j = i;
+        while j + 1 < n && values[idx[j + 1]] == values[idx[i]] {
+            j += 1;
+        }
+        let avg = (i + j) as f64 / 2.0 + 1.0; // 1-based average rank for the tie group
+        for k in i..=j {
+            ranks[idx[k]] = avg;
+        }
+        i = j + 1;
+    }
+    ranks
+}
+
+fn pearson(a: &[f64], b: &[f64]) -> f64 {
+    let n = a.len() as f64;
+    if n == 0.0 {
+        return 0.0;
+    }
+    let ma = a.iter().sum::<f64>() / n;
+    let mb = b.iter().sum::<f64>() / n;
+    let (mut cov, mut va, mut vb) = (0.0, 0.0, 0.0);
+    for i in 0..a.len() {
+        let da = a[i] - ma;
+        let db = b[i] - mb;
+        cov += da * db;
+        va += da * da;
+        vb += db * db;
+    }
+    if va == 0.0 || vb == 0.0 {
+        return 0.0;
+    }
+    cov / (va.sqrt() * vb.sqrt())
+}
+
+// Spearman = Pearson on the average ranks.
+fn spearman(x: &[f64], y: &[f64]) -> f64 {
+    pearson(&average_ranks(x), &average_ranks(y))
+}
+
+fn write_lines_csv(path: &str, lines: &[String]) {
+    if let Some(parent) = std::path::Path::new(path).parent() {
+        let _ = create_dir_all(parent);
+    }
+    match File::create(path) {
+        Ok(f) => {
+            let mut w = BufWriter::new(f);
+            for line in lines {
+                let _ = writeln!(w, "{}", line);
+            }
+        }
+        Err(e) => eprintln!("Failed to write {}: {}", path, e),
     }
 }

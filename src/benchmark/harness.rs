@@ -213,6 +213,7 @@ fn print_summary_with_policy(results: &[BenchmarkResult]) {
             CorePolicy::None => "None",
             CorePolicy::FastBias => "FastBias",
             CorePolicy::EfficientBias => "EfficientBias",
+            CorePolicy::Background => "Background",
             CorePolicy::Mixed => "Mixed",
         };
         println!(

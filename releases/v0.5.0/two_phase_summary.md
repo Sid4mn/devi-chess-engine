@@ -1,5 +1,8 @@
 # Two-Phase Scheduler Summary (v0.5.0)
 
+> Kept as shipped. The 1.55x, probe depth 1, and the alpha handoff didn't survive re-measurement
+> (the 12.8x was mostly QoS throttling) - see [../v0.6.0/reality_check.md](../v0.6.0/reality_check.md).
+
 **Motivation**: My v0.4.0 QoS experiments showed a **12.8x P/E gap** on M1 Pro, with mixed scheduling achieving only 65% expected throughput. Rather than fight the OS scheduler, I built a work-aware dispatch layer.
 
 **Approach**: Probe root moves to estimate subtree size, run heavy subtrees on P-cores first, then hand E-cores the tightened alpha bound so they prune aggressively.

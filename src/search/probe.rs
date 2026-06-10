@@ -57,10 +57,6 @@ pub fn probe_root_moves(board: &Board, moves: &[Move], depth: u8) -> Vec<(Move, 
         .collect()
 }
 
-pub fn classify_moves(probed: Vec<(Move, u64)>) -> (Vec<ClassifiedMove>, Vec<ClassifiedMove>) {
-    classify_moves_with_config(probed, &ClassificationConfig::default())
-}
-
 pub fn classify_moves_with_config(probed: Vec<(Move, u64)>, config: &ClassificationConfig) -> (Vec<ClassifiedMove>, Vec<ClassifiedMove>) {
     if probed.is_empty() {
         return (vec![], vec![]);

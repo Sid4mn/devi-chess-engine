@@ -1,8 +1,10 @@
 use crate::board::{Board, BoardRepresentation};
 use crate::moves::generate_legal_moves;
 use crate::scheduling::{create_e_core_pool, create_p_core_pool, create_pool_for_policy, CorePolicy};
+use crate::search::top_two_root_moves_shallow;
 use crate::search::minimax::alphabeta;
 use crate::search::minimax::root_move_score;
+use crate::search::minimax::root_move_score_bounded;
 use crate::search::minimax::MATE_SCORE;
 use crate::search::probe::{classify_moves_with_config, probe_root_moves, ClassificationConfig};
 use crate::search::recovery::CompletedMoves;
@@ -24,7 +26,9 @@ pub struct TwoPhaseConfig {
 impl Default for TwoPhaseConfig {
     fn default() -> Self {
         Self {
-            probe_depth: 1,
+            // depth-1 probing is noise: every move has ~the same reply count, so it can't
+            // tell heavy from light. depth 2 is where the ranking signal actually shows up.
+            probe_depth: 2,
             p_core_threads: 8,
             e_core_threads: 2,
             classification: ClassificationConfig::default(),
@@ -32,23 +36,10 @@ impl Default for TwoPhaseConfig {
     }
 }
 
-/// Decide whether to use two-phase scheduling based on move count.
-/// Returns optimal config if beneficial, None if baseline is better.
-pub fn should_use_two_phase(legal_move_count: usize) -> Option<TwoPhaseConfig> {
-    match legal_move_count {
-        0..=10 => None, // Skip two-phase: too few moves to classify
-        11..=25 => Some(TwoPhaseConfig {
-            probe_depth: 2,
-            classification: ClassificationConfig { heavy_ratio: 0.6, light_threshold: 0.3 },
-            ..Default::default()
-        }),
-        _ => Some(TwoPhaseConfig {
-            probe_depth: 1,
-            classification: ClassificationConfig { heavy_ratio: 0.8, light_threshold: 0.3 },
-            ..Default::default()
-        }),
-    }
-}
+/* should_use_two_phase used to live here, picking a config by move count. deleted after
+   the reality check - two-phase doesn't beat plain work-stealing on this chip at any
+   move count, so there's no "beneficial" config to return.
+   see releases/v0.6.0/reality_check.md */
 
 /// Detailed timing metrics from two-phase search
 #[derive(Clone, Debug, Default)]
@@ -134,8 +125,12 @@ pub struct SearchOutcome {
     pub dropped: Vec<Move>,
 }
 
-// one parallel pass; catch_unwind per move so a panic doesn't poison the whole batch.
-fn run_round(board: &Board, moves: &[Move], pending: &[usize], depth: u32, color: Color, inject: &InjectionPlan, pool: &rayon::ThreadPool) -> Vec<(usize, Result<(Move, i32), ()>)> {
+/* one parallel pass; catch_unwind per move so a panic doesn't poison the whole batch.
+   `best_root` is the shared alpha (root POV) for this batch. it's static within a batch
+   on purpose: a live shared bound would make tie-breaks depend on thread timing, and the
+   engine promises serial == parallel. the driver tightens the bound BETWEEN chunks
+   instead. i32::MIN + 1 means "no bound yet" and degenerates to a full-window search. */
+fn run_round(board: &Board, moves: &[Move], pending: &[usize], depth: u32, color: Color, best_root: i32, inject: &InjectionPlan, pool: &rayon::ThreadPool) -> Vec<(usize, Result<(Move, i32), ()>)> {
     pool.install(|| {
         pending
             .par_iter()
@@ -145,7 +140,7 @@ fn run_round(board: &Board, moves: &[Move], pending: &[usize], depth: u32, color
                     maybe_inject_panic(idx, board, mv, inject);
                     // root-side-relative score so we can just take the max later
                     let mut local_board = board.clone();
-                    root_move_score(&mut local_board, mv, depth, color)
+                    root_move_score_bounded(&mut local_board, mv, depth, color, best_root)
                 }));
 
                 match outcome {
@@ -215,25 +210,85 @@ pub fn parallel_search_with_fault_set(board: &mut Board,depth: u32,policy: CoreP
     let pool = create_pool_for_policy(policy, threads, mixed_ratio);
 
     let mut completed = CompletedMoves::new(moves.len());
-    let mut pending: Vec<usize> = (0..moves.len()).collect();
+
+    /* Young Brothers Wait: search one likely-best move FIRST (full window) to seed a tight
+       alpha, then search the rest in parallel bounded by it so they can prune. The seed is
+       picked by a cheap shallow search (best-at-shallow is almost always best-at-full), and
+       ordering only affects speed, never the result. best_root stays i32::MIN + 1 if seeding fails. */
+    /* the seed pick + seed search run inside the policy pool too, not on the caller thread.
+       they used to run outside it, which meant a big serial chunk always ran at foreground
+       qos no matter what --core-policy said - the policy benchmarks were only measuring the
+       post-seed batch. */
+    let shallow_depth = depth.saturating_sub(2).clamp(1, 4);
+    let (seed_idx, runner_up) = pool.install(|| top_two_root_moves_shallow(board, &moves, current_color, shallow_depth));
+    let mut best_root = i32::MIN + 1;
+
+    /* Seed is fault-isolated, and a seed panic no longer means "skip seeding entirely" -
+       that silently cost ~3x, because the whole batch then ran full-window with no shared
+       bound. the fallback is the shallow runner-up specifically: a near-best bound still
+       prunes well, an arbitrary replacement move wouldn't. both dead -> full-window. */
+    let mut candidates = vec![seed_idx];
+    if let Some(r) = runner_up {
+        candidates.push(r);
+    }
+    let mut seeded: Option<usize> = None;
+    for idx in candidates {
+        let mv = &moves[idx];
+        let res = pool.install(|| catch_unwind(AssertUnwindSafe(|| {
+            maybe_inject_panic(idx, board, mv, &inject);
+            let mut local = board.clone();
+            root_move_score(&mut local, mv, depth, current_color)
+        })));
+        if let Ok(score) = res {
+            completed.record(idx, *mv, score);
+            best_root = score;
+            seeded = Some(idx);
+            break;
+        }
+        // panicked - fall through to the fallback candidate (a crashed seed lands back in
+        // pending and gets retried in the batch like any other move)
+    }
+
+    if std::env::var("DEVI_DEBUG_SEED").is_ok() {
+        eprintln!("DEBUG seed_idx={} ({}) runner_up={:?} seeded={:?} best_root={}",
+            seed_idx, moves[seed_idx].to_algebraic(), runner_up, seeded, best_root);
+    }
+
+    // Everything still to do: all moves except a successfully-seeded seed.
+    let mut pending: Vec<usize> = (0..moves.len())
+        .filter(|&i| seeded != Some(i))
+        .collect();
     let mut round = 0;
 
-    // retry only the moves that failed; completed ones stay recorded so we never recompute them.
+    /* retry only the moves that failed; completed ones stay recorded so we never recompute
+       them. each round runs in index-ordered chunks of one pool's worth, and the bound is
+       re-raised from completed scores between chunks. that keeps everything deterministic
+       (scores never depend on thread timing, ties resolve in move order like the serial
+       search) while still letting a weak bound recover mid-round - which is what caps the
+       cost of losing the seed move to a fault. */
+    let chunk_size = threads.max(1);
     let failed = loop {
-        let batch = run_round(board, &moves, &pending, depth, current_color, &inject, &pool);
+        let mut round_failed = Vec::new();
+        for piece in pending.chunks(chunk_size) {
+            let batch = run_round(board, &moves, piece, depth, current_color, best_root, &inject, &pool);
 
-        let mut failed = Vec::new();
-        for (idx, res) in batch {
-            match res {
-                Ok((mv, score)) => completed.record(idx, mv, score),
-                Err(()) => failed.push(idx),
+            for (idx, res) in batch {
+                match res {
+                    Ok((mv, score)) => {
+                        completed.record(idx, mv, score);
+                        if score > best_root {
+                            best_root = score;
+                        }
+                    }
+                    Err(()) => round_failed.push(idx),
+                }
             }
         }
 
-        if failed.is_empty() || round >= MAX_RETRY_ROUNDS {
-            break failed;
+        if round_failed.is_empty() || round >= MAX_RETRY_ROUNDS {
+            break round_failed;
         }
-        pending = failed;
+        pending = round_failed;
         round += 1;
     };
 
@@ -279,37 +334,40 @@ pub fn two_phase_search_with_metrics(
     
     let p_pool = create_p_core_pool(config.p_core_threads)
         .expect("Failed to create P-core pool");
-    
-    // Phase 1: Heavy moves on P-cores
-    let phase1_start = Instant::now();
-    let (phase1_best_move, phase1_best_score) = if !heavy_moves.is_empty() {
-        p_pool.install(|| {
-            search_moves_parallel(board, &heavy_moves, depth, i32::MIN + 1)
-        })
-    } else {
-        (Move::default(), i32::MIN + 1)
-    };
-    metrics.phase1_time_ms = phase1_start.elapsed().as_secs_f64() * 1000.0;
-    
-    // Phase 2: Light moves on E-cores
-    let phase2_start = Instant::now();
-    let (phase2_best_move, phase2_best_score) = if !light_moves.is_empty() {
-        let e_pool = create_e_core_pool(config.e_core_threads)
-            .expect("Failed to create E-core pool");
-        
-        let alpha = if phase1_best_score > i32::MIN + 1 {
-            phase1_best_score
-        } else {
-            i32::MIN + 1
-        };
-        
-        e_pool.install(|| {
-            search_moves_parallel(board, &light_moves, depth, alpha)
-        })
-    } else {
-        (Move::default(), i32::MIN + 1)
-    };
-    metrics.phase2_time_ms = phase2_start.elapsed().as_secs_f64() * 1000.0;
+    let e_pool = create_e_core_pool(config.e_core_threads)
+        .expect("Failed to create E-core pool");
+
+    /* run both phases at the same time: heavy on p-cores, light on e-cores, so wall-clock
+       is max(p, e) instead of p + e. the old serial order existed to hand phase 2 a tightened
+       alpha from phase 1, but that handoff is gone (search_moves_parallel goes full-window),
+       so serializing just left the e-cores idle through the whole of phase 1. */
+    let board_ref: &Board = board;
+    let ((phase1_best_move, phase1_best_score), p1_ms,
+         (phase2_best_move, phase2_best_score), p2_ms) = std::thread::scope(|s| {
+        let heavy = s.spawn(|| {
+            let t = Instant::now();
+            let r = if !heavy_moves.is_empty() {
+                p_pool.install(|| search_moves_parallel(board_ref, &heavy_moves, depth, i32::MIN + 1))
+            } else {
+                (Move::default(), i32::MIN + 1)
+            };
+            (r, t.elapsed().as_secs_f64() * 1000.0)
+        });
+        let light = s.spawn(|| {
+            let t = Instant::now();
+            let r = if !light_moves.is_empty() {
+                e_pool.install(|| search_moves_parallel(board_ref, &light_moves, depth, i32::MIN + 1))
+            } else {
+                (Move::default(), i32::MIN + 1)
+            };
+            (r, t.elapsed().as_secs_f64() * 1000.0)
+        });
+        let (hr, h_ms) = heavy.join().unwrap();
+        let (lr, l_ms) = light.join().unwrap();
+        (hr, h_ms, lr, l_ms)
+    });
+    metrics.phase1_time_ms = p1_ms;
+    metrics.phase2_time_ms = p2_ms;
     
     let (best_move, best_score) = if phase2_best_score > phase1_best_score {
         (phase2_best_move, phase2_best_score)
@@ -334,10 +392,10 @@ pub fn two_phase_search_with_metrics(
     (best_move, best_score, metrics)
 }
 
-// search a batch of classified moves in parallel, return best (move, score).
-// _alpha used to be the earlier phase's best for cross-phase pruning, but mixing
-// that with the full-window per-move search was wrong, so we ignore it now and
-// just search each move full-window. keeps the signature for the callers.
+/* search a batch of classified moves in parallel, return best (move, score).
+   _alpha used to be the earlier phase's best for cross-phase pruning, but mixing that
+   with the full-window per-move search was wrong, so we ignore it now and just search
+   each move full-window. keeps the signature for the callers. */
 fn search_moves_parallel(board: &Board, moves: &[ClassifiedMove], depth: u32, _alpha: i32) -> (Move, i32) {
     if moves.is_empty() {
         return (Move::default(), i32::MIN + 1);

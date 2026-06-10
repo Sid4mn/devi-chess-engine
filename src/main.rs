@@ -24,8 +24,18 @@ fn run_command(args: &cli::Cli) {
         return;
     }
 
-    // pick mode independently of --inject-panic (it's just a modifier the search
-    // modes read). perft/soak used to get swallowed when injecting, don't anymore.
+    if args.classify_analysis {
+        cli::commands::run_classification_analysis(&args);
+        return;
+    }
+
+    if args.crossover {
+        cli::commands::run_crossover_analysis(&args);
+        return;
+    }
+
+    /* pick mode independently of --inject-panic (it's just a modifier the search
+       modes read). perft/soak used to get swallowed when injecting, don't anymore. */
     match (args.benchmark, args.soak, args.perft) {
         (true, _, _) => cli::run_full_benchmark(&args),
         (_, true, _) => cli::run_soak_test(&args),

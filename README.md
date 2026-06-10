@@ -17,10 +17,41 @@ Building a chess engine from scratch to understand parallel search algorithms an
 ## Project Philosophy
 **Approach:** Build it, measure it, understand the bottlenecks.
 
-## Performance Status (v0.5.0)
+## Performance Status (v0.6.0)
 ![Build Status](https://github.com/Sid4mn/devi-chess-engine/workflows/CI/badge.svg)
 
+## v0.6.0 - Reality Check
+
+Re-measured the v0.5.0 claims before pitching this project. Most didn't survive.
+
+The 1.55x traced back to an unsound alpha handoff (sign bug that over-pruned), an E-pool
+throttled ~13x by `QOS_CLASS_BACKGROUND` (real gap is ~3x - same goes for v0.4.0's "12.8x"),
+and phases running sequentially. Fixed all three; routing still loses:
+
+![Fix journey](releases/v0.6.0/figures/fix_journey.png)
+
+```
+Kiwipete, two-phase with E-cores actually used (depth 6):
+  as shipped (sequential, BACKGROUND, probe 1):  37.2s
+  + overlap phases:                              25.9s
+  + UTILITY QoS, probe 2:                         6.6s
+  baseline (10-thread work-stealing):             4.7s   <- still wins
+```
+
+What survived: the probe does predict subtree cost, weakly (rank corr ~0.4-0.5), and only at
+depth 2 - depth 1 (the shipped default) is noise.
+
+Also in v0.6.0: fault recovery reworked from whole-search retry to per-move isolation - an
+ordinary fault now costs **+3%** instead of +100% (the v0.4 target was <=30%), with runner-up
+re-seeding and chunked bound-tightening covering the seed-fault case. And the v0.4 policy sweep
+redone: `efficient` QoS turns out to be unenforceable on an idle machine (the OS spills
+low-priority threads onto free P-cores), so the 12.8x was never a hardware number.
+
+[Full reality check](releases/v0.6.0/reality_check.md) | [Fault tolerance](releases/v0.6.0/fault_tolerance.md)
+
 ## v0.5.0 - Two-Phase Heterogeneous Scheduler
+
+> Superseded by the v0.6.0 reality check above - kept as shipped.
 
 Built on v0.4.0's finding that E-cores are 12.8x slower - instead of fighting the OS scheduler, I classify moves by subtree size and dispatch to the right cores.
 
@@ -46,6 +77,9 @@ Three studies on parallel chess search:
 
 ### 1. Fault Tolerance
 **100% overhead** - Rayon's all-or-nothing model discards all parallel work on panic.
+
+> Fixed in v0.6.0: per-move isolation brings this to 11-33% regardless of fault count -
+> see [fault_tolerance.md](releases/v0.6.0/fault_tolerance.md).
 
 [Details](releases/v0.4.0/fault_tolerance_analysis.md)
 
@@ -181,9 +215,11 @@ cargo run --release -- --perft --parallel-perft --threads 8 --depth 7 # Parallel
 | `--recovery-analysis` | Quick fault recovery test | - |
 | `--two-phase` | Enable two-phase heterogeneous scheduling | false |
 | `--two-phase-benchmark` | Run two-phase benchmark suite | false |
-| `--probe-depth` | Depth for move classification probe | 1 |
-| `--p-cores` | P-core threads for Phase 1 | 8 |
-| `--e-cores` | E-core threads for Phase 2 | 2 |
+| `--probe-depth` | Depth for move classification probe (1 is noise, see reality check) | 2 |
+| `--p-cores` | P-core threads for the heavy batch | 8 |
+| `--e-cores` | E-core threads for the light batch | 2 |
+| `--classify-analysis` | Probe accuracy vs true per-move search cost | false |
+| `--crossover` | First-k moves: 10-core work-stealing vs 8 P-cores | false |
 
 ## Deliverables
 
@@ -245,18 +281,24 @@ Heterogeneous Core Scheduling **COMPLETED**
 Two-Phase Scheduler **COMPLETED** (v0.5.0)
 - [x] Probe-based move classification by subtree size
 - [x] Separate P-core and E-core thread pools
-- [x] Alpha-bound handoff for E-core pruning
-- [x] Adaptive heuristic (should_use_two_phase)
+- [x] Alpha-bound handoff for E-core pruning (later found unsound and removed - see reality check)
 - [x] Failure mode analysis (0.7 ratio disaster)
+
+Reality Check **COMPLETED** (v0.6.0)
+- [x] Probe accuracy study (depth 2 = weak real signal, depth 1 = noise)
+- [x] 1.55x post-mortem (unsound alpha handoff, traced in git history)
+- [x] QoS throttle fix (BACKGROUND -> UTILITY) + corrected policy sweep
+- [x] Per-move fault recovery: 100% -> +3% ordinary-fault overhead, seed-fault hardening
+- [x] Crossover analysis (E-cores are latency-neutral on 8+2)
 
 ## Future Work
 
-1. **Checkpoint-based recovery** - reduce overhead from 100% to ~15-30%
-2. **Work-stealing scheduler** with separate P/E core pools
-3. **Heterogeneity-aware orchestrator** routing heavy subtrees to P-cores  
-4. **Partitioned transposition tables** - hot entries on P-core caches, cold on E-cores
-5. **PV-split parallelization** with core-aware work distribution (PV nodes -> P-cores)
-6. **Opening book** and endgame tablebase integration
+1. **Energy measurement** - routing light work to E-cores (at UTILITY) is a latency wash, but
+   work-per-joule under sustained load is untested - the one place heterogeneous routing might
+   still pay (powermetrics)
+3. **Partitioned transposition tables** - hot entries on P-core caches, cold on E-cores
+4. **PV-split parallelization** with core-aware work distribution (PV nodes -> P-cores)
+5. **Opening book** and endgame tablebase integration
 
 ## Raw Data
 
@@ -277,8 +319,6 @@ timestamp,threads,policy,median_ms,searches_per_sec
 ```
 
 ## Future Directions
-
-**Checkpoint Recovery** - Per-thread root-level checkpointing with `catch_unwind` to preserve completed move evaluations on panic. Target: ≤30% overhead (vs current 100% full retry).
 
 **Transposition Table** - Memoization for 5-10x speedup. Intentionally omitted in v0.5.0 to isolate the scheduling research question.
 

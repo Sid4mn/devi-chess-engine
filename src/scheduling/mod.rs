@@ -1,7 +1,8 @@
 //! Thread scheduling policies for heterogeneous architectures
 //! Implements Apple QoS biasing on macOS, graceful fallback elsewhere
-// QOS_CLASS_USER_INITIATED biases toward P-cores (~90% effective)
-// TODO: Linux version with pthread_setaffinity would be cleaner
+/* USER_INITIATED lands threads on P-cores, but foreground work goes there anyway,
+   so FastBias ~= baseline in practice (see releases/v0.6.0/reality_check.md).
+   TODO: Linux version with pthread_setaffinity would be cleaner */
 
 use clap::ValueEnum;
 #[cfg(target_os = "macos")]
@@ -17,6 +18,10 @@ pub enum CorePolicy {
     FastBias,
     #[value(name = "efficient")]
     EfficientBias,
+    /// all threads at BACKGROUND qos - kept around to demonstrate the OS throttle the v0.4
+    /// numbers were accidentally measuring (efficient used to mean this)
+    #[value(name = "background")]
+    Background,
     #[value(name = "mixed")]
     Mixed,
 }
@@ -67,16 +72,21 @@ fn apply_qos_for_thread(
     total_threads: usize,
     mixed_ratio: f32,
 ) {
+    /* efficient/mixed used to tag BACKGROUND here, which is why v0.4 measured a "12.8x gap" -
+       that's the OS throttle tier, not the E-cores. UTILITY is the honest "run on E-cores at
+       their real speed" tier (~3x). the background policy keeps the old behavior so the
+       throttle stays demonstrable. */
     let qos_class = match policy {
         CorePolicy::None => return,
         CorePolicy::FastBias => qos_class_t::QOS_CLASS_USER_INITIATED,
-        CorePolicy::EfficientBias => qos_class_t::QOS_CLASS_BACKGROUND,
+        CorePolicy::EfficientBias => qos_class_t::QOS_CLASS_UTILITY,
+        CorePolicy::Background => qos_class_t::QOS_CLASS_BACKGROUND,
         CorePolicy::Mixed => {
             let fast_workers = (total_threads as f32 * mixed_ratio) as usize;
             if worker_index < fast_workers {
                 qos_class_t::QOS_CLASS_USER_INITIATED
             } else {
-                qos_class_t::QOS_CLASS_BACKGROUND
+                qos_class_t::QOS_CLASS_UTILITY
             }
         }
     };
@@ -166,8 +176,11 @@ pub fn create_e_core_pool(num_threads: usize) -> Result<rayon::ThreadPool, rayon
                     extern "C" {
                         fn pthread_set_qos_class_self_np(qos_class: c_uint, relative_priority: i32) -> i32;
                     }
-                    const QOS_CLASS_BACKGROUND: c_uint = 0x09;
-                    unsafe { pthread_set_qos_class_self_np(QOS_CLASS_BACKGROUND, 0); }
+                    /* utility, not background: both land on e-cores, but background is the
+                       "user must never notice" tier (~13x throttle). utility runs them at
+                       their real ~3x gap, which is what we actually want to route to. */
+                    const QOS_CLASS_UTILITY: c_uint = 0x11;
+                    unsafe { pthread_set_qos_class_self_np(QOS_CLASS_UTILITY, 0); }
                 }
                 thread.run();
             })?;

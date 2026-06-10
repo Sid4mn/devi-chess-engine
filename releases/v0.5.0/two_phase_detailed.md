@@ -1,5 +1,8 @@
 # Two-Phase Scheduler: Technical Notes
 
+> Kept as shipped - several claims below were later overturned (the 1.55x, probe depth 1, the
+> alpha handoff). See [../v0.6.0/reality_check.md](../v0.6.0/reality_check.md).
+
 **v0.5.0** | December 2025 | Apple M1 Pro
 
 ---

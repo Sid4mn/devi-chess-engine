@@ -1,5 +1,8 @@
 # Two-Phase Benchmark Results Summary
 
+> Original v0.5.0 numbers (depth 7, sequential phases, BACKGROUND-throttled E-pool, probe 1) -
+> kept for the record. See [../../v0.6.0/reality_check.md](../../v0.6.0/reality_check.md).
+
 ## Starting Position
 
 | Config | Median (ms) | Probe (ms) | P1 (ms) | P2 (ms) | Searches/s | Speedup |

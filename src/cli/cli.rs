@@ -60,8 +60,8 @@ pub struct Cli {
     #[arg(long, default_value_t = false)]
     pub two_phase: bool,
 
-    /// Probe depth for move classification (1-2 recommended)
-    #[arg(long, default_value_t = 1)]
+    /// Probe depth for move classification (2 = cheapest depth that actually predicts cost; 1 is noise)
+    #[arg(long, default_value_t = 2)]
     pub probe_depth: u8,
 
     /// Number of P-core threads for Phase 1
@@ -75,6 +75,17 @@ pub struct Cli {
     /// Run two-phase benchmark mode (compares baseline vs two-phase)
     #[arg(long, default_value_t = false)]
     pub two_phase_benchmark: bool,
+
+    /// Run classification-accuracy analysis: probe node-count (depths 1..3) vs
+    /// true full-depth search cost per root move. Answers "at what probe depth
+    /// can we correctly tell heavy from light branches?" independent of the scheduler.
+    #[arg(long, default_value_t = false)]
+    pub classify_analysis: bool,
+
+    /// Crossover analysis: search the first k root moves on a 10-core pool (work-stealing over
+    /// 8P+2E) vs an 8 P-core pool, sweeping k, to find where avoiding the slow E-cores stops paying.
+    #[arg(long, default_value_t = false)]
+    pub crossover: bool,
 
     /// Heavy move ratio for classification (0.0-1.0, default 0.6 = top 60% are heavy)
     #[arg(long, default_value_t = 0.6)]
