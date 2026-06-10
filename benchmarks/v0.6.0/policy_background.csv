@@ -1,0 +1,2 @@
+timestamp,threads,policy,median_ms,searches_per_sec,speedup,efficiency
+2026-06-09_20:54:34,8,Background,1919.566,0.52,1.00,12.5

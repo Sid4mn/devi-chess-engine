@@ -1,0 +1,2 @@
+timestamp,threads,policy,median_ms,searches_per_sec,speedup,efficiency
+2026-06-09_20:54:38,8,Mixed,235.862,4.24,1.00,12.5

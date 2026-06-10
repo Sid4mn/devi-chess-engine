@@ -1,0 +1,2 @@
+timestamp,threads,policy,median_ms,searches_per_sec,speedup,efficiency
+2026-06-10_06:05:26,2,FastBias,281.103,3.56,1.00,50.0
