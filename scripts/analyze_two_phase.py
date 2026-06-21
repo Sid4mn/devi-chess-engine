@@ -280,7 +280,7 @@ def generate_summary_table(df: pd.DataFrame, output_dir: Path):
 
 def main():
     csv_path = sys.argv[1] if len(sys.argv) > 1 else 'benchmarks/v0.5.0/two_phase_benchmark.csv'
-    output_dir = Path('releases/v0.5.0/figures')
+    output_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else Path('releases/v0.5.0/figures')
     output_dir.mkdir(parents=True, exist_ok=True)
     
     print(f"Loading data from: {csv_path}")
