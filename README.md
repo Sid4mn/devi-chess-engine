@@ -24,7 +24,7 @@ Building a chess engine from scratch to understand parallel search algorithms an
 
 Re-measured the v0.5.0 claims before pitching this project. Most didn't survive.
 
-The 1.55x traced back to an unsound alpha handoff (sign bug that over-pruned), an E-pool
+The 1.55x traced back to an unsound alpha handoff (sign bug that over-pruned, fixed in v0.5.1), an E-pool
 throttled ~13x by `QOS_CLASS_BACKGROUND` (real gap is ~3x - same goes for v0.4.0's "12.8x"),
 and phases running sequentially. Fixed all three; routing still loses:
 
@@ -48,6 +48,16 @@ redone: `efficient` QoS turns out to be unenforceable on an idle machine (the OS
 low-priority threads onto free P-cores), so the 12.8x was never a hardware number.
 
 [Full reality check](releases/v0.6.0/reality_check.md) | [Fault tolerance](releases/v0.6.0/fault_tolerance.md)
+
+## v0.5.1 - Two-Phase Recheck
+
+> The intermediate step - found the search bug, hadn't yet pinned the scheduler.
+
+Re-running the two-phase benchmark before pitching turned up a sign bug in the root search (negamax-style negation on an absolute eval). The unsound alpha bound it produced was the entire 1.55x. Fixed it, left the scheduler untouched, re-ran three times (hot/cooled/cold): two-phase ties work-stealing at best (ratio 0.5) and craters to ~0.26x at the shipped ratio 0.8, where the light moves hit the throttled E-cores. The ~22-25s phase-2 blowup is what pointed at the scheduler - the thread v0.6.0 pulls.
+
+![Speedup vs ratio](releases/v0.5.1/figures/speedup_vs_ratio.png)
+
+[Recheck writeup](releases/v0.5.1/two_phase_recheck.md)
 
 ## v0.5.0 - Two-Phase Heterogeneous Scheduler
 
@@ -78,8 +88,8 @@ Three studies on parallel chess search:
 ### 1. Fault Tolerance
 **100% overhead** - Rayon's all-or-nothing model discards all parallel work on panic.
 
-> Fixed in v0.6.0: per-move isolation brings this to 11-33% regardless of fault count -
-> see [fault_tolerance.md](releases/v0.6.0/fault_tolerance.md).
+> Fixed in v0.6.0: per-move isolation drops the common case to +3% (worst case +80% when the
+> seed move faults) - see [fault_tolerance.md](releases/v0.6.0/fault_tolerance.md).
 
 [Details](releases/v0.4.0/fault_tolerance_analysis.md)
 

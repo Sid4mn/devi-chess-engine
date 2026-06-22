@@ -4,8 +4,10 @@
 
 Before pitching this project I went back and re-verified the v0.5.0 claims in
 [two_phase_summary.md](../v0.5.0/two_phase_summary.md) and
-[two_phase_detailed.md](../v0.5.0/two_phase_detailed.md). Short version: the 1.55x doesn't hold
-up. This doc is the corrected version.
+[two_phase_detailed.md](../v0.5.0/two_phase_detailed.md). [v0.5.1](../v0.5.1/two_phase_recheck.md)
+already caught the first half - a sign bug in the search was the whole 1.55x, and fixing it flips
+two-phase to a loss, with the phase-2 blowup pointing at the E-cores. This doc finishes the job:
+the scheduler/QoS half, and whether routing can win once that's accounted for. Short version: it can't.
 
 The original idea was really two claims: (1) you can cheaply predict which root moves are heavy,
 (2) routing on that prediction beats doing nothing. They got different answers.
@@ -44,10 +46,10 @@ implementation negated a white-relative alphabeta as if it were negamax, with a 
 side-to-move flag. It was fast because it pruned subtrees it had no right to prune, and it could
 pick wrong moves.
 
-So the old doc's "Key Insight" (the alpha-bound handoff) was describing a bug. Commit `690df81`
-fixed move selection and removed the handoff; `b3d9510` gave the baseline seeding plus a sound
-shared bound. Two-phase got slower-but-correct, the baseline got faster, and the 1.55x flipped to
-a loss.
+So the old doc's "Key Insight" (the alpha-bound handoff) was describing a bug. v0.5.1 fixed move
+selection and removed the handoff (`690df81`) and gave the baseline seeding plus a sound shared
+bound (`b3d9510`). Two-phase got slower-but-correct, the baseline got faster, and the 1.55x flipped
+to a loss.
 
 ---
 

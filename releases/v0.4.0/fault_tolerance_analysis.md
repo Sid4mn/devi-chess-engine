@@ -1,7 +1,7 @@
 # Fault Tolerance Analysis
 
 > Kept as shipped. The 100% overhead below was the whole-search-retry design; v0.6.0 replaced it
-> with per-move isolation (11-33% regardless of fault count) - see [../v0.6.0/fault_tolerance.md](../v0.6.0/fault_tolerance.md).
+> with per-move isolation (+3% common case, +80% on a seed fault) - see [../v0.6.0/fault_tolerance.md](../v0.6.0/fault_tolerance.md).
 
 ## Problem
 Hardware faults in parallel chess search cause complete loss of in-flight work. Need to quantify recovery overhead without checkpointing.
